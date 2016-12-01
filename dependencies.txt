@@ -3,3 +3,4 @@ betamax
 pytest
 pyxdg
 requests
+responses

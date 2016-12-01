@@ -1,6 +1,9 @@
 attrs==16.3.0
 betamax==0.8.0
+cookies==2.2.1
 py==1.4.31
 pytest==3.0.4
 pyxdg==0.25
 requests==2.12.2
+responses==0.5.1
+six==1.10.0
