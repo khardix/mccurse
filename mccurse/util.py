@@ -3,6 +3,7 @@
 
 from pathinfo import Path
 
+import requests
 import xdg
 
 
@@ -31,3 +32,14 @@ def default_data_dir(directory: Path = None) -> Path:
         return Path(xdg.BaseDirectory.save_data_path(RESOURCE_NAME))
     else:
         return directory
+
+
+def default_new_session(session: requests.Session = None) -> requests.Session:
+    """Create new Requests' Session, if none is provided.
+    Otherwise, return session as it is.
+    """
+
+    if session is None:
+        return requests.Session()
+    else:
+        return session
