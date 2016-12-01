@@ -1,10 +1,10 @@
 """Various utilities and language enhancements."""
 
 
-from pathinfo import Path
+from pathlib import Path
 
 import requests
-import xdg
+import xdg.BaseDirectory
 
 
 # Consistent names definitions
