@@ -1,3 +1,6 @@
 attrs==16.3.0
+betamax==0.8.0
+py==1.4.31
+pytest==3.0.4
 pyxdg==0.25
 requests==2.12.2

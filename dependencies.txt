@@ -1,3 +1,5 @@
 attrs
-requests
+betamax
+pytest
 pyxdg
+requests
