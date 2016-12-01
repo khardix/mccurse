@@ -1,0 +1,1 @@
+"""Minecraft Curse CLI Client"""
