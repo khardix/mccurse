@@ -1,7 +1,7 @@
 """Interface to Curse project feed"""
 
 
-from pathinfo import Path
+from pathlib import Path
 from typing import Iterator
 
 import attr
