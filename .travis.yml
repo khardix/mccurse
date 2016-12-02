@@ -1,0 +1,6 @@
+# Travis CI configuration file
+language: python
+python:
+    - "3.5"
+install: "pip install -r requirements.txt"
+script: "python -m pytest"
