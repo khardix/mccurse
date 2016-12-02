@@ -9,9 +9,10 @@ automatically install them for you.
 
 .. _CurseForge: https://minecraft.curseforge.com/
 
-Current test status:
-.. image:: https://travis-ci.org/khardix/mccurse.svg?branch=master
-    :target: https://travis-ci.org/khardix/mccurse
+Current test status: |travis|
+
+.. |travis| image:: https://travis-ci.org/khardix/mccurse.svg?branch=master
+                 :target: https://travis-ci.org/khardix/mccurse
 
 Usage
 -----
