@@ -12,10 +12,6 @@ from pyfakefs import fake_filesystem, fake_pathlib
 
 from mccurse import curse
 
-CASSETE = {  # Cassete names
-    'timestamp': 'fetch-timestamp',
-}
-
 
 @pytest.fixture
 def empty_game() -> curse.Game:
@@ -70,7 +66,7 @@ def test_default_session(empty_game):
 def test_current_timestamp(minecraft):
     """Will the timestamp be fetched correctly?"""
 
-    with betamax.Betamax(minecraft.session).use_cassette(CASSETE['timestamp']):
+    with betamax.Betamax(minecraft.session).use_cassette('current-timestamp'):
         assert isinstance(minecraft.current_timestamp(), int)
 
 
@@ -98,7 +94,7 @@ def test_db_uri_existing(minecraft):
 def test_db_uri_current(minecraft):
     """Does the game fetch missing timestamp?"""
 
-    with betamax.Betamax(minecraft.session).use_cassette(CASSETE['timestamp']):
+    with betamax.Betamax(minecraft.session).use_cassette('current-db-uri'):
         parts = {
             'scheme': curse.DB_PROTO,
             'path': Path('/tmp'),

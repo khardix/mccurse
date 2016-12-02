@@ -13,4 +13,4 @@ if not os.path.exists(CASSETE_DIR):
 
 with betamax.Betamax.configure() as config:
     config.cassette_library_dir = CASSETE_DIR
-    config.default_cassette_options['record_mode'] = 'new_episodes'
+    config.default_cassette_options['record_mode'] = 'once'
