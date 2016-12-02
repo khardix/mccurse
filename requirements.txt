@@ -7,7 +7,6 @@ linecache2==1.0.0
 mox3==0.18.0
 pbr==1.10.0
 py==1.4.31
-pyfakefs==2.9
 pytest==3.0.4
 python-mimeparse==1.6.0
 pyxdg==0.25
@@ -17,3 +16,5 @@ six==1.10.0
 testtools==2.2.0
 traceback2==1.4.0
 unittest2==1.1.0
+
+git+https://github.com/jmcgeheeiv/pyfakefs#egg=pyfakefs
