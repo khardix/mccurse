@@ -8,6 +8,7 @@ import betamax
 import pytest
 import requests
 import responses
+from pyfakefs import fake_filesystem, fake_pathlib
 
 from mccurse import curse
 
@@ -111,3 +112,45 @@ def test_db_uri_current(minecraft):
         RESULT = minecraft.db_uri(target_dir=parts['path'])
 
         assert RESULT == EXPECT
+
+
+@responses.activate
+def test_db_glob_empty(monkeypatch, minecraft):
+    """Report no existing databases correctly?"""
+
+    TESTDIR = '/test'
+
+    fs = fake_filesystem.FakeFilesystem()
+    fs.CreateDirectory(TESTDIR)
+    flib = fake_pathlib.FakePathlibModule(fs)
+
+    it = minecraft.db_glob(flib.Path(TESTDIR))
+    assert len(list(it)) == 0
+    assert len(responses.calls) == 0
+
+
+@responses.activate
+def test_db_glob_len(monkeypatch, minecraft):
+    """Report all existing databases?"""
+
+    TESTDIR = '/test'
+    TIMESTAMPS = 42, 43, 44
+
+    fs = fake_filesystem.FakeFilesystem()
+    fs.CreateDirectory(TESTDIR)
+
+    for fake_timestamp in TIMESTAMPS:
+        filename = '/'.join((
+            TESTDIR,
+            curse.DB_BASENAME.format(
+                abbr=minecraft.abbr,
+                timestamp=fake_timestamp,
+            ),
+        ))
+        fs.CreateFile(filename)
+
+    flib = fake_pathlib.FakePathlibModule(fs)
+
+    it = minecraft.db_glob(flib.Path(TESTDIR))
+    assert len(list(it)) == len(TIMESTAMPS)
+    assert len(responses.calls) == 0
