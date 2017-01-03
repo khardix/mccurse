@@ -39,22 +39,28 @@ def minecraft_feed() -> curse.Feed:
     return curse.Feed(game_id=432, session=requests.Session())
 
 @responses.activate
-def test_feed_url(empty_game):
+def test_complete_feed_url(minecraft_feed):
     """Generate correct feed URL?"""
 
-    EXPECT = curse.FEED_URL.format_map(attr.asdict(empty_game))
+    EXPECT = '/'.join((
+        curse.Feed._BASEURL.format(id=minecraft_feed.game_id),
+        curse.Feed._COMPLETE_URL,
+    ))
 
-    assert empty_game.feed_url == EXPECT
+    assert minecraft_feed.complete_url == EXPECT
     assert len(responses.calls) == 0
 
 
 @responses.activate
-def test_timestamp_url(empty_game):
+def test_complete_timestamp_url(minecraft_feed):
     """Generate correct timestamp URL?"""
 
-    EXPECT = curse.TIMESTAMP_URL.format_map(attr.asdict(empty_game))
+    EXPECT = '/'.join((
+        curse.Feed._BASEURL.format(id=minecraft_feed.game_id),
+        curse.Feed._COMPLETE_URL + '.txt',
+    ))
 
-    assert empty_game.timestamp_url == EXPECT
+    assert minecraft_feed.complete_timestamp_url == EXPECT
     assert len(responses.calls) == 0
 
 

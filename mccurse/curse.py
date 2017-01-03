@@ -47,6 +47,23 @@ class Feed:
         default=None,
     )
 
+    @property
+    def complete_url(self) -> str:
+        """Fully expanded URL of complete feed."""
+
+        parts = (
+            self._BASEURL.format(id=self.game_id),
+            self._COMPLETE_URL,
+        )
+
+        return '/'.join(parts)
+
+    @property
+    def complete_timestamp_url(self) -> str:
+        """Fully expanded URL of complete feed timestamp."""
+
+        return self.complete_url + '.txt'
+
 
 @attr.s(slots=True)
 class Game:
