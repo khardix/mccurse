@@ -64,6 +64,39 @@ class Feed:
 
         return self.complete_url + '.txt'
 
+    @staticmethod
+    def _decode_timestamp(ms_timestamp: int) -> datetime:
+        """Convert timestamp in ms into a :class:`datetime` object.
+
+        Keyword arguments:
+            ms_timestamp: The timestamp, in miliseconds, presumed to be in UTC.
+
+        Returns:
+            :class:`datetime` object pointing to the same point in time
+            as the timestamp.
+        """
+
+        return datetime.fromtimestamp(ms_timestamp/1000, timezone.utc)
+
+    def fetch_complete_timestamp(self) -> datetime:
+        """Provide current complete feed time signature.
+
+        .. note:: The timestamp is assumed to be in UTC (as it should be).
+
+        Returns:
+            Datetime object pointed to the same point in time as the timestamp.
+
+        Raises:
+            requests.HTTPError: When an HTTP error occurs while fetching.
+        """
+
+        session = default_new_session(self.session)
+
+        resp = session.get(self.complete_timestamp_url)
+        resp.raise_for_status()
+
+        return self._decode_timestamp(int(resp.content))
+
 
 @attr.s(slots=True)
 class Game:

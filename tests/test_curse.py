@@ -1,6 +1,7 @@
 """Tests for the curse submodule."""
 
 
+import datetime
 from pathlib import Path
 
 import attr
@@ -65,6 +66,29 @@ def test_complete_timestamp_url(minecraft_feed):
 
 
 @responses.activate
+def test_timestamp_decoding(minecraft_feed):
+    """Decode the timestamp contents correctly?"""
+
+    EXPECT = datetime.datetime(
+        year=2012, month=8, day=2,
+        hour=12, minute=0, microsecond=123000,
+        tzinfo=datetime.timezone.utc,
+    )
+    # Input is timestamp in microseconds
+    INPUT = int(EXPECT.timestamp()*1000)
+
+    assert minecraft_feed._decode_timestamp(INPUT) == EXPECT
+    assert len(responses.calls) == 0
+
+
+def test_fetch_complete_timestamp(minecraft_feed):
+    """Fetches and decodes the timestamp correctly?"""
+
+    with betamax.Betamax(minecraft_feed.session).use_cassette('feed-timestamp'):  # noqa: E501
+        timestamp = minecraft_feed.fetch_complete_timestamp()
+        assert isinstance(timestamp, datetime.datetime)
+
+
 def test_default_session(empty_game):
     """Will the game works with no session?"""
 
