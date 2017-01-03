@@ -14,6 +14,8 @@ from pyfakefs import fake_filesystem, fake_pathlib
 from mccurse import curse
 
 
+# Fixtures
+
 @pytest.fixture
 def empty_game() -> curse.Game:
     """Dummy game for testing, without session"""
@@ -38,6 +40,9 @@ def minecraft_feed() -> curse.Feed:
     """Feed for testing, with session"""
 
     return curse.Feed(game_id=432, session=requests.Session())
+
+
+# Feed tests
 
 @responses.activate
 def test_complete_feed_url(minecraft_feed):
@@ -88,6 +93,8 @@ def test_fetch_complete_timestamp(minecraft_feed):
         timestamp = minecraft_feed.fetch_complete_timestamp()
         assert isinstance(timestamp, datetime.datetime)
 
+
+# Game tests
 
 def test_default_session(empty_game):
     """Will the game works with no session?"""
