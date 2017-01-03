@@ -4,7 +4,6 @@
 import datetime
 from pathlib import Path
 
-import attr
 import betamax
 import pytest
 import requests
