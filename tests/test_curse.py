@@ -131,13 +131,6 @@ def test_default_session(empty_game):
     assert empty_game.current_timestamp() == EXPECT
 
 
-def test_current_timestamp(minecraft):
-    """Will the timestamp be fetched correctly?"""
-
-    with betamax.Betamax(minecraft.session).use_cassette('current-timestamp'):
-        assert isinstance(minecraft.current_timestamp(), int)
-
-
 @responses.activate
 def test_db_uri_existing(minecraft):
     """Does the game produce expected DB URI?"""
