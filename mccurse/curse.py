@@ -1,6 +1,7 @@
 """Interface to Curse project feed"""
 
 
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
