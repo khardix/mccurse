@@ -1,10 +1,12 @@
 """Tests for the curse submodule."""
 
 
+import bz2
 import datetime
 from pathlib import Path
 
 import betamax
+import ijson
 import pytest
 import requests
 import responses
@@ -70,6 +72,20 @@ def test_complete_timestamp_url(minecraft_feed):
 
 
 @responses.activate
+def test_content_decoding(minecraft_feed):
+    """Decode the stream contents correctly?"""
+
+    EXPECT = 'Ahoj světe'
+    INPUT = bz2.compress(EXPECT.encode('utf-8'))
+
+    with minecraft_feed._decode_contents(INPUT) as stream:
+        decoded = stream.read()
+
+    assert decoded == EXPECT
+    assert len(responses.calls) == 0
+
+
+@responses.activate
 def test_timestamp_decoding(minecraft_feed):
     """Decode the timestamp contents correctly?"""
 
@@ -93,8 +109,18 @@ def test_fetch_complete_timestamp(minecraft_feed):
         assert isinstance(timestamp, datetime.datetime)
 
 
+def test_fetch_complete(minecraft_feed):
+    """Fetches and decodes the contents correctly?"""
+
+    with betamax.Betamax(minecraft_feed.session).use_cassette('fetch-feed'), \
+            minecraft_feed.fetch_complete() as feed:
+        timestamp = next(ijson.items(feed, 'timestamp'), None)
+        assert isinstance(timestamp, int)
+
 # Game tests
 
+
+@responses.activate
 def test_default_session(empty_game):
     """Will the game works with no session?"""
 

@@ -15,4 +15,7 @@ record_mode = 'none' if os.environ.get('TRAVIS_BUILD') else 'once'
 
 with betamax.Betamax.configure() as config:
     config.cassette_library_dir = CASSETE_DIR
-    config.default_cassette_options['record_mode'] = record_mode
+    config.default_cassette_options.update({
+        'record_mode': record_mode,
+        'preserve_exact_body_bytes': True,
+    })

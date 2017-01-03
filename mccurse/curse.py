@@ -1,9 +1,12 @@
 """Interface to Curse project feed"""
 
 
+import bz2
+from contextlib import contextmanager
 from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, TextIO
 
 import attr
 import requests
@@ -64,6 +67,44 @@ class Feed:
         """Fully expanded URL of complete feed timestamp."""
 
         return self.complete_url + '.txt'
+
+    @staticmethod
+    @contextmanager
+    def _decode_contents(feed: bytes) -> TextIO:
+        """Decode the provided data from bz2 to text.
+
+        The :arg:`feed` is assumed to be bz2-encoded text data in utf-8
+        encoding.
+
+        Keyword arguments:
+            feed: The data to be decoded.
+
+        Returns: Decoded text stream.
+        """
+
+        with BytesIO(feed) as compressed, \
+                bz2.open(compressed, mode='rt', encoding='utf-8') as stream:
+            yield stream
+
+    @contextmanager
+    def fetch_complete(self) -> TextIO:
+        """Provide complete feed contents.
+
+        Returns:
+            Text stream of complete feed contents, that should be used
+            in with-statement to be closed afterwards.
+
+        Raises:
+            requests.HTTPError: When an HTTP error occurs when fetching feed.
+        """
+
+        session = default_new_session(self.session)
+
+        resp = session.get(self.complete_url)
+        resp.raise_for_status()
+
+        with self._decode_contents(resp.content) as text:
+            yield text
 
     @staticmethod
     def _decode_timestamp(ms_timestamp: int) -> datetime:
