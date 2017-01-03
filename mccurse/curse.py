@@ -6,6 +6,7 @@ from typing import Iterator
 
 import attr
 import requests
+from attr import validators as vld
 
 from .util import default_new_session, default_cache_dir
 
@@ -18,6 +19,33 @@ TIMESTAMP_URL = 'http://clientupdate-v6.cursecdn.com/feed/addons/{id}/v10/comple
 DB_PROTO = 'sqlite://'
 DB_BASENAME = 'mods-{abbr}-{timestamp}.sqlite'
 DB_URI = '/'.join((DB_PROTO, '{target_dir}', DB_BASENAME))
+
+
+@attr.s(slots=True)
+class Feed:
+    """Interface to the Curse Project Feed for a particular game.
+
+    The project feed is a set of bzip2-compressed json files that
+    contains all of the add-ons for a game. The set consists of
+    a complete feed (`complete.json.bz2`) and a hourly feed
+    (`hourly.json.bz2`). Both feeds contain a timestamp of last change
+    (in ms, for some reason), which is also accessible separately by
+    appending a `.txt` suffix to the feed URL (i.e.
+    `complete.json.bz2.txt`).
+    """
+
+    #: Base URL
+    _BASEURL = 'http://clientupdate-v6.cursecdn.com/feed/addons/{id}/v10'
+    #: Complete feed suffix
+    _COMPLETE_URL = 'complete.json.bz2'
+
+    #: Curse internal game identification
+    game_id = attr.ib(validator=vld.instance_of(int))
+    #: The :class:`requests.Session` to use for network requests
+    session = attr.ib(
+        validator=vld.optional(vld.instance_of(requests.Session)),
+        default=None,
+    )
 
 
 @attr.s(slots=True)

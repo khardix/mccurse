@@ -32,6 +32,12 @@ def minecraft() -> curse.Game:
     )
 
 
+@pytest.fixture
+def minecraft_feed() -> curse.Feed:
+    """Feed for testing, with session"""
+
+    return curse.Feed(game_id=432, session=requests.Session())
+
 @responses.activate
 def test_feed_url(empty_game):
     """Generate correct feed URL?"""
