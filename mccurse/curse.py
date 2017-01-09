@@ -1,4 +1,8 @@
-"""Interface to Curse project feed"""
+"""Interface to CurseForge.
+
+This module contains definitons of classes wrapping project feeds, games
+and any other resources available from the Curse network.
+"""
 
 
 import bz2
