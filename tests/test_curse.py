@@ -43,6 +43,13 @@ def minecraft_feed() -> curse.Feed:
     return curse.Feed(game_id=432, session=requests.Session())
 
 
+@pytest.fixture
+def file_database(tmpdir) -> curse.Database:
+    """Database potentially located in temp dir."""
+
+    return curse.Database('test', Path(str(tmpdir)))
+
+
 # Feed tests
 
 @responses.activate
@@ -117,8 +124,47 @@ def test_fetch_complete(minecraft_feed):
         timestamp = next(ijson.items(feed, 'timestamp'), None)
         assert isinstance(timestamp, int)
 
-# Game tests
 
+# Database tests
+
+def test_file_uri(file_database):
+    """Construct filesystem URI correctly?"""
+
+    EXPECT = '{scheme}/{path!s}/{name}'.format(
+        scheme=curse.Database._SCHEME,
+        path=file_database.root_dir.resolve(),
+        name=curse.Database._BASENAME.format(
+            game_name=file_database.game_name
+        ),
+    )
+
+    assert file_database.uri == EXPECT
+
+
+def test_engine_creation(file_database):
+    """Is the DB engine created correctly in both types of DB?"""
+
+    QUERY = 'SELECT 1+1'
+    EXPECT = (2,)
+
+    assert file_database.engine.execute(QUERY).first() == EXPECT
+
+
+def test_database_versioning(file_database):
+    """Is the data version persisted correctly?"""
+
+    INPUT = datetime.datetime(2012, 12, 12, tzinfo=datetime.timezone.utc)
+    timestamp = int(INPUT.timestamp())
+
+    file_database.version = INPUT
+
+    dbstamp, = file_database.engine.execute('PRAGMA user_version').first()
+
+    assert dbstamp == timestamp
+    assert file_database.version == INPUT
+
+
+# Game tests
 
 @responses.activate
 def test_default_session(empty_game):
