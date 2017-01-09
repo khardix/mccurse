@@ -145,6 +145,30 @@ class Feed:
 
 
 @attr.s(slots=True)
+class Database:
+    """Interface to the local database of addons for a particular game.
+
+    The addon database is stored in SQLite3 DB file. Its main purpose is to
+    store feed's data locally and to prevent unnecessary re-downloading
+    and re-parsing of them.
+
+    The timestamp of the data can (and should) be stored directly
+    in the DB file header (using `pragma user_version`). However, this only
+    accepts 32 bits wide integer, so the timestamp should be stored
+    fractionless (floored to whole second), and it is vulnerable
+    to the "Year 2038" problem.
+    """
+
+    _SCHEME = 'sqlite://'  #: DB URI scheme.
+    _BASENAME = '{game_name}-addons.sqlite'  #: DB URI basename format
+
+    #: Name uniquely identifiyng the game.
+    game_name = attr.ib(validator=vld.instance_of(str))
+    #: Location of the database on the filesystem.
+    root_dir = attr.ib(validator=vld.instance_of(Path))
+
+
+@attr.s(slots=True)
 class Game:
     """Description of a moddable game for the Curse feed."""
 
