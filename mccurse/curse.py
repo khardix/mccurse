@@ -8,6 +8,7 @@ and any other resources available from the Curse network.
 import bz2
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from typing import Iterator, TextIO
@@ -176,6 +177,13 @@ class Database:
             str(self.root_dir.resolve()),
             self._BASENAME.format(game_name=self.game_name),
         ))
+
+    @property
+    @lru_cache
+    def engine(self) -> sqlalchemy.engine.Engine:
+        """Provide connection pool for the database."""
+
+        return sqlalchemy.create_engine(self.uri)
 
 
 @attr.s(slots=True)
