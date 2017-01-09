@@ -180,7 +180,7 @@ class Database:
         ))
 
     @property
-    @lru_cache
+    @lru_cache()
     def engine(self) -> sqlalchemy.engine.Engine:
         """Provide connection pool for the database."""
 
