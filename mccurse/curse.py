@@ -15,6 +15,7 @@ from typing import Iterator, TextIO
 
 import attr
 import requests
+import sqlalchemy
 from attr import validators as vld
 
 from .util import default_new_session, default_cache_dir
@@ -184,6 +185,20 @@ class Database:
         """Provide connection pool for the database."""
 
         return sqlalchemy.create_engine(self.uri)
+
+    @property
+    def version(self) -> datetime:
+        """Read the version/timestamp of the data in the database."""
+
+        timestamp = self.engine.execute('PRAGMA user_version')
+        return datetime.fromtimestamp(timestamp.first(), timezone.utc)
+
+    @version.setter
+    def version(self, newver: datetime) -> None:
+        """Set the version/timestamp of the data in the database."""
+
+        timestamp = int(newver.timestamp())
+        self.engine.execute('PRAGMA user_version = ?', (timestamp,)).close()
 
 
 @attr.s(slots=True)
