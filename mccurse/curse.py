@@ -167,6 +167,16 @@ class Database:
     #: Location of the database on the filesystem.
     root_dir = attr.ib(validator=vld.instance_of(Path))
 
+    @property
+    def uri(self) -> str:
+        """Constructs full DB URI for this database."""
+
+        return '/'.join((
+            self._SCHEME,
+            str(self.root_dir.resolve()),
+            self._BASENAME.format(game_name=self.game_name),
+        ))
+
 
 @attr.s(slots=True)
 class Game:
