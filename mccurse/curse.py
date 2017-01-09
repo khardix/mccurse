@@ -190,15 +190,17 @@ class Database:
     def version(self) -> datetime:
         """Read the version/timestamp of the data in the database."""
 
-        timestamp = self.engine.execute('PRAGMA user_version')
-        return datetime.fromtimestamp(timestamp.first(), timezone.utc)
+        timestamp, = self.engine.execute('PRAGMA user_version').first()
+        return datetime.fromtimestamp(timestamp, timezone.utc)
 
     @version.setter
     def version(self, newver: datetime) -> None:
         """Set the version/timestamp of the data in the database."""
 
-        timestamp = int(newver.timestamp())
-        self.engine.execute('PRAGMA user_version = ?', (timestamp,)).close()
+        # Cannot use SQL interpolation in PRAGMA statements :(
+        # Force integral formating that the value is indeed an integer
+        query = 'PRAGMA user_version = {:d}'.format(int(newver.timestamp()))
+        self.engine.execute(query).close()
 
 
 @attr.s(slots=True)
