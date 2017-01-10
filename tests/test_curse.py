@@ -17,25 +17,6 @@ from mccurse import curse
 # Fixtures
 
 @pytest.fixture
-def empty_game() -> curse.Game:
-    """Dummy game for testing, without session"""
-
-    return curse.Game(id=1, abbr='dm', name='dummy')
-
-
-@pytest.fixture
-def minecraft() -> curse.Game:
-    """Dummy game for testing, with session"""
-
-    return curse.Game(
-        id=432,
-        abbr='mc',
-        name='Minecraft',
-        session=requests.Session(),
-    )
-
-
-@pytest.fixture
 def minecraft_feed() -> curse.Feed:
     """Feed for testing, with session"""
 
