@@ -11,6 +11,8 @@ import pytest
 import requests
 import responses
 
+from sqlalchemy.orm.session import Session as SQLSession
+
 from mccurse import curse
 
 
@@ -28,6 +30,25 @@ def file_database(tmpdir) -> curse.Database:
     """Database potentially located in temp dir."""
 
     return curse.Database('test', Path(str(tmpdir)))
+
+
+@pytest.fixture
+def filled_database(file_database) -> curse.Database:
+    """Database with some mods filled in."""
+
+    # Create structure
+    curse.AddonBase.metadata.create_all(file_database.engine)
+
+    # Add few mods
+    session = SQLSession(bind=file_database.engine)
+    session.add_all([
+        curse.Mod(id=42, name='tested', summary="Mod under test"),
+        curse.Mod(id=45, name='tester', summary="Validate tested mod"),
+        curse.Mod(id=3, name='unrelated', summary="Dummy"),
+    ])
+    session.commit()
+
+    return file_database
 
 
 # Feed tests
@@ -142,3 +163,47 @@ def test_database_versioning(file_database):
 
     assert dbstamp == timestamp
     assert file_database.version == INPUT
+
+
+# Mod tests
+
+def test_json_parsing():
+    """Is the mod correctly constructed from JSON data?"""
+
+    INPUT = {
+      "Id": 74072,
+      "Name": "Tinkers Construct",
+      "Summary": "Modify all the things, then do it again!",
+    }
+    EXPECT = curse.Mod(
+        id=74072,
+        name="Tinkers Construct",
+        summary="Modify all the things, then do it again!",
+    )
+
+    assert curse.Mod.from_json(INPUT) == EXPECT
+
+
+def test_mod_search(filled_database):
+    """Does the search return expected results?"""
+
+    EXPECT_IDS = {42, 45}
+
+    session = SQLSession(bind=filled_database.engine)
+    selected = curse.Mod.search(session, 'Tested')
+
+    assert {int(m.id) for m in selected} == EXPECT_IDS
+
+
+def test_mod_find(filled_database):
+    """Does the search find the correct mod or report correct error?"""
+
+    session = SQLSession(bind=filled_database.engine)
+
+    assert curse.Mod.find(session, 'Tested').id == 42
+
+    with pytest.raises(curse.MultipleResultsFound):
+        curse.Mod.find(session, 'test')
+
+    with pytest.raises(curse.NoResultFound):
+        curse.Mod.find(session, 'nonsense')
