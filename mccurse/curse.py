@@ -201,6 +201,11 @@ class Database:
         query = 'PRAGMA user_version = {:d}'.format(int(newver.timestamp()))
         self.engine.execute(query).close()
 
+    def session(self) -> SQLSession:
+        """Create new session for batch database communication."""
+
+        return SQLSession(bind=self.engine)
+
 
 # Declarative base class for DB table definitions
 AddonBase = declarative_base()
