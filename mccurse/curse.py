@@ -225,12 +225,9 @@ class Mod(AddonBase):
     #: Internal Curse mod identification
     id = Column(Integer, primary_key=True, autoincrement=False)
     #: Official mod name
-    name = Column(String)
+    name = Column(String, index=True)
     #: Short mod description
-    summary = Column(String)
-
-    #: Indexes prepared for manual manipulation
-    manual_indexes = {}
+    summary = Column(String, index=True)
 
     def __repr__(self) -> str:
         fmt = 'Mod(id={0.id!r}, name={0.name!r}, summary={0.summary!r})'
@@ -310,7 +307,4 @@ class Mod(AddonBase):
 
         return query(connection).params(name='%{}%'.format(name)).one()
 
-Mod.manual_indexes = {
-    Index('idx_mod_name', Mod.name),
-    Index('idx_mod_summ', Mod.summary),
-}
+
