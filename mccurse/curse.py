@@ -308,3 +308,49 @@ class Mod(AddonBase):
         return query(connection).params(name='%{}%'.format(name)).one()
 
 
+@attr.s(init=False, slots=True)
+class Game:
+    """Interface to the projects related to one game in Curse network.
+
+    The purpose of this class is to aggregate any objects providing related
+    functionality and provide high-level procedural "glue" tying them
+    together in one neat package.
+    """
+
+    # Primary attributes – must be supplied by user
+    id = attr.ib(validator=vld.instance_of(int))  #: Curse internal game ID
+    name = attr.ib(validator=vld.instance_of(str))  #: Human-readable name
+
+    # Secondary/Derived attributes
+    database = attr.ib(validator=vld.instance_of(Database))
+    feed = attr.ib(validator=vld.instance_of(Feed))
+
+    def __init__(
+        self,
+        id: int,
+        name: str,
+        *,
+        session: requests.Session = None,
+        cache_dir: Path = None
+    ):
+        """Initialize and create all the data for a game.
+
+        Keyword arguments:
+            id: Curse internal game identification.
+            name: Human-readable name.
+            session: :class:`requests.Session` to use for network calls.
+            cache_dir: Path to the game's cache (which include mod database).
+        """
+
+        session = default_new_session(session)
+        cache_dir = default_cache_dir(cache_dir)
+
+        self.id = id
+        self.name = name
+
+        self.database = Database(game_name=name.lower(), root_dir=cache_dir)
+        self.feed = Feed(game_id=id, session=session)
+
+        # Fill the database, if it does not exists
+        if self.database.version == 0:
+            AddonBase.metadata.create_all(self.database.engine)
