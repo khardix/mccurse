@@ -3,6 +3,7 @@
 
 import bz2
 import datetime
+import json
 from pathlib import Path
 
 import betamax
@@ -49,6 +50,18 @@ def filled_database(file_database) -> curse.Database:
     session.commit()
 
     return file_database
+
+
+@pytest.fixture
+def game(tmpdir) -> curse.Game:
+    """Game pre-initialized with testing objects."""
+
+    # leave session intact
+    return curse.Game(
+        id=432,  # Minecraft id
+        name='Minecraft',
+        cache_dir=Path(str(tmpdir)),
+    )
 
 
 # Feed tests
@@ -207,3 +220,50 @@ def test_mod_find(filled_database):
 
     with pytest.raises(curse.NoResultFound):
         curse.Mod.find(session, 'nonsense')
+
+
+# Game tests
+
+@responses.activate
+def test_gamedata_refresh(game):
+    """Does the game refreshes its data correctly?"""
+
+    now = datetime.datetime.now(tz=datetime.timezone.utc).replace(microsecond=0)  # noqa: E501
+    curse_timestamp = int(now.timestamp()*1000)
+
+    # Mock project feed
+    mod_path = {'CategorySection': {'Path': 'mods'}}
+    other_path = {'CategorySection': {'Path': 'other'}}
+    mock_feed_body = {
+        'timestamp': curse_timestamp,
+        'data': [
+            dict(mod_path, Name='test', Id=42, Summary='Test mod'),
+            dict(mod_path, Name='nott', Id=15, Summary='No test!'),
+            dict(mod_path, Name='tinker', Id=432, Summary='Metamod'),
+
+            dict(other_path, Name='map', Id=16, Summary='Map pack'),
+        ]
+    }
+
+    # Complete feed
+    responses.add(
+        responses.GET,
+        game.feed.complete_url,
+        body=bz2.compress(json.dumps(mock_feed_body).encode('utf-8')),
+    )
+    # Timestamp
+    responses.add(
+        responses.GET,
+        game.feed.complete_timestamp_url,
+        body=str(curse_timestamp).encode('utf-8'),
+    )
+
+    game.refresh_data()
+    sess = game.database.session()
+
+    assert len(responses.calls) == 2
+    assert game.database.version == now
+    assert sess.query(curse.Mod).count() == len([
+        d for d in mock_feed_body['data']
+        if d['CategorySection']['Path'] == 'mods'
+    ])

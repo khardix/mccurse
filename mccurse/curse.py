@@ -200,7 +200,8 @@ class Database:
         # Cannot use SQL interpolation in PRAGMA statements :(
         # Force integral formating that the value is indeed an integer
         query = 'PRAGMA user_version = {:d}'.format(int(newver.timestamp()))
-        self.engine.execute(query).close()
+        with self.engine.begin() as conn:
+            conn.execute(query)
 
     def session(self) -> SQLSession:
         """Create new session for batch database communication."""
@@ -353,5 +354,30 @@ class Game:
         self.feed = Feed(game_id=id, session=session)
 
         # Fill the database, if it does not exists
-        if self.database.version == 0:
+        epoch = datetime.fromtimestamp(0, tz=timezone.utc)
+        if self.database.version == epoch:
             AddonBase.metadata.create_all(self.database.engine)
+
+    def refresh_data(self):
+        """Download, store and index fresh version of the game add-ons."""
+
+        sess = self.database.session()
+
+        # Destroy indexes and truncate old data
+        sess.query(Mod).delete()
+
+        # Parse the feed's data
+        # TODO: Extract feed's timestamp from the JSON
+        with self.feed.fetch_complete() as feed:
+            addons = ijson.items(feed, 'data.item')
+            mods = filter(
+                lambda a: a['CategorySection']['Path'] == 'mods',
+                addons,
+            )
+
+            sess.add_all(Mod.from_json(m) for m in mods)
+
+        sess.commit()
+
+        # Write the timestamp
+        self.database.version = self.feed.fetch_complete_timestamp()
