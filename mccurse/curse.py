@@ -14,16 +14,17 @@ from pathlib import Path
 from typing import TextIO, Mapping, Sequence
 
 import attr
+import ijson
 import requests
 import sqlalchemy
 from attr import validators as vld
-from sqlalchemy import Column, Index, Integer, String
+from sqlalchemy import Column, Integer, String
 from sqlalchemy import or_, bindparam
 from sqlalchemy.orm.session import Session as SQLSession
 from sqlalchemy.ext.baked import bakery
 from sqlalchemy.ext.declarative import declarative_base
 
-from .util import default_new_session
+from .util import default_new_session, default_cache_dir
 
 # Used exceptions -- make them available in this namespace
 from requests.exceptions import HTTPError  # noqa: F401
