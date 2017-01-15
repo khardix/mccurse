@@ -1,0 +1,5 @@
+betamax
+pytest
+responses
+
+git+https://github.com/jmcgeheeiv/pyfakefs#egg=pyfakefs

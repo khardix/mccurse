@@ -1,11 +1,6 @@
 attrs
-betamax
 click
 ijson
-pytest
 pyxdg
 requests
-responses
 sqlalchemy
-
-git+https://github.com/jmcgeheeiv/pyfakefs#egg=pyfakefs
