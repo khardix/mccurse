@@ -4,3 +4,4 @@ ijson
 pyxdg
 requests
 sqlalchemy
+urwid
