@@ -7,7 +7,7 @@ and any other resources available from the Curse network.
 
 import bz2
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
@@ -381,3 +381,26 @@ class Game:
 
         # Write the timestamp
         self.database.version = self.feed.fetch_complete_timestamp()
+
+    def have_fresh_data(
+        self,
+        valid_period: timedelta = timedelta(hours=24),
+        *,
+        now: datetime = datetime.now(tz=timezone.utc)
+    ) -> bool:
+        """Check if the data in the database are still fresh (enough).
+
+        By default, the data are considered to be actual for 24 hours
+        after the publication of the project feed.
+
+        Keyword arguments:
+            valid_period: How much time has to pass since the data import
+                for the data to be considered stale.
+            now: Specify the point in time to be considered 'now'.
+
+        Returns:
+            True if the data are still considered fresh, False otherwise.
+        """
+
+        time_passed = now - self.database.version
+        return time_passed < valid_period

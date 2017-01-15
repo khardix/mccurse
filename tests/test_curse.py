@@ -267,3 +267,23 @@ def test_gamedata_refresh(game):
         d for d in mock_feed_body['data']
         if d['CategorySection']['Path'] == 'mods'
     ])
+
+
+@responses.activate
+def test_gamedata_fresh(game):
+    """Does the game check the data validity correctly?"""
+
+    data_timestamp = datetime.datetime(
+        2017, 1, 15, 0, 0, 0,
+        tzinfo=datetime.timezone.utc,
+    )
+    game.database.version = data_timestamp
+
+    assert game.have_fresh_data(
+        valid_period=datetime.timedelta(hours=24),
+        now=data_timestamp+datetime.timedelta(hours=12),
+    )
+    assert not game.have_fresh_data(
+        valid_period=datetime.timedelta(hours=24),
+        now=data_timestamp+datetime.timedelta(hours=24),
+    )
