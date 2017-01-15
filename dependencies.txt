@@ -1,5 +1,6 @@
 attrs
 betamax
+click
 ijson
 pytest
 pyxdg
