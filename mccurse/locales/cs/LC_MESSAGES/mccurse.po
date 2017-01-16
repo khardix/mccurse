@@ -1,0 +1,44 @@
+# Czech translations for mccurse.
+# Copyright (C) 2017 Jan 'Khardix' Staněk
+# This file is distributed under the same license as the mccurse project.
+# Jan Staněk <khardix@gmail.com>, 2017.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: mccurse 0.1.2.dev0+ngc2be2bb.d20170116\n"
+"Report-Msgid-Bugs-To: khardix@gmail.com\n"
+"POT-Creation-Date: 2017-01-16 20:47+0100\n"
+"PO-Revision-Date: 2017-01-16 20:31+0100\n"
+"Last-Translator: Jan Staněk <khardix@gmail.com>\n"
+"Language: cs\n"
+"Language-Team: cs <khardix@gmail.com>\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
+"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.3.4\n"
+
+#. NOTE: Help for refresh flag
+#: mccurse/cli.py:28
+msgid "Force refreshing of search data."
+msgstr "Vynutí obnovení prohledávaných dat."
+
+#: mccurse/cli.py:35
+msgid "No text to search for!"
+msgstr "Chybí text k vyhledání!"
+
+#: mccurse/cli.py:43
+msgid "Refreshing search data, please wait…"
+msgstr "Obnovuji data k prohledání, prosím o strpení…"
+
+#: mccurse/cli.py:48
+msgid "Search results for \"{text}\""
+msgstr "Nalezené výsledky pro \"{text}\""
+
+#: mccurse/cli.py:49
+msgid "Choose mod to open its project page, or press [q] to quit."
+msgstr ""
+"Zvolte mód pro otevření jeho projektové stránky, nebo stiskněte [q] pro "
+"ukončení."
+
