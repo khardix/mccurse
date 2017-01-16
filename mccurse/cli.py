@@ -23,6 +23,9 @@ def cli():
 def search(refresh, text):
     """Search for TEXT in mods on CurseForge."""
 
+    if not text:
+        raise SystemExit('No text to search for!')
+
     mc = Game(**MINECRAFT)
 
     text = ' '.join(text)
