@@ -4,6 +4,7 @@ import curses
 
 import click
 
+from . import _
 from .curse import Game, Mod
 from .tui import select_mod
 
@@ -23,14 +24,15 @@ def cli():
 @cli.command()
 @click.option(
     '--refresh', is_flag=True, default=False,
-    help='Force refreshing of search data.'
+    # NOTE: Help for refresh flag
+    help=_('Force refreshing of search data.')
 )
 @click.argument('text', nargs=-1, type=str)
 def search(refresh, text):
     """Search for TEXT in mods on CurseForge."""
 
     if not text:
-        raise SystemExit('No text to search for!')
+        raise SystemExit(_('No text to search for!'))
 
     mc = Game(**MINECRAFT)
 
@@ -38,13 +40,15 @@ def search(refresh, text):
     refresh = refresh or not mc.have_fresh_data()
 
     if refresh:
-        click.echo('Refreshing search data, please wait…', err=True)
+        click.echo(_('Refreshing search data, please wait…'), err=True)
         mc.refresh_data()
 
     found = Mod.search(mc.database.session(), text)
 
-    title = 'Search results for "{}"'.format(text)
-    instructions = 'Choose mod to open its project page, or press [q] to quit.'
+    title = _('Search results for "{text}"').format(text=text)
+    instructions = _(
+        'Choose mod to open its project page, or press [q] to quit.'
+    )
 
     chosen = select_mod(found, title, instructions)
     if chosen is not None:
