@@ -1,8 +1,11 @@
 """Package command line interface."""
 
+import curses
+
 import click
 
 from .curse import Game, Mod
+from .tui import select_mod
 
 
 # Static data
@@ -12,6 +15,9 @@ MINECRAFT = {'id': 432, 'name': 'Minecraft'}
 @click.group()
 def cli():
     """Minecraft Curse CLI client."""
+
+    # Initialize terminal for querying
+    curses.setupterm()
 
 
 @cli.command()
@@ -35,10 +41,12 @@ def search(refresh, text):
         click.echo('Refreshing search data, please wait…', err=True)
         mc.refresh_data()
 
-    mod_fmt = '{0.name}: {0.summary}'
-    for mod in Mod.search(mc.database.session(), text):
-        click.echo(mod_fmt.format(mod))
+    found = Mod.search(mc.database.session(), text)
 
+    title = 'Search results for "{}"'.format(text)
+    instructions = 'Choose mod to open its project page, or press [q] to quit.'
 
-# If run as a package, run whole cli
-cli()
+    chosen = select_mod(found, title, instructions)
+    if chosen is not None:
+        project_url_fmt = 'https://www.curseforge.com/projects/{mod.id}/'
+        click.launch(project_url_fmt.format(mod=chosen))
