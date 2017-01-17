@@ -1,8 +1,33 @@
 """A setup module for the mccurse package."""
 
+from distutils.command.build import build as orig_build
 from pathlib import Path
 from setuptools import setup, find_packages
 from typing import Generator, TextIO
+
+
+# Custom commands
+
+class build(orig_build):
+    sub_commands = [
+        # Commands before original build
+        ('compile_catalog', None),
+    ] + orig_build.sub_commands + [
+        # Commands after original build
+    ]
+
+
+# Helper functions
+
+def extract_deps(fd: TextIO) -> Generator[str, None, None]:
+    """Extract dependencies from file."""
+    yield from (
+        line for line in fd
+        if line and not line.startswith(('#', 'git+'))
+    )
+
+
+# Setup values preparation
 
 here = Path(__file__).resolve().parent
 
@@ -10,14 +35,6 @@ here = Path(__file__).resolve().parent
 readme = here / 'README.rst'
 with readme.open(encoding='utf-8') as rdm:
     long_description = rdm.read()
-
-
-# Requirements
-def extract_deps(fd: TextIO) -> Generator[str, None, None]:
-    yield from (
-        line for line in fd
-        if line and not line.startswith(('#', 'git+'))
-    )
 
 
 deps = here / 'dependencies.txt'
@@ -32,7 +49,11 @@ with test_deps.open(encoding='utf-8') as td:
 
 setup_requires = [
     'setuptools_scm',
+    'babel',
 ]
+
+
+# Setup call
 
 setup(
     name='mccurse',
@@ -69,7 +90,14 @@ setup(
 
     keywords='minecraft modding automation',
 
+    cmdclass={
+        'build': build,
+    },
+
     packages=find_packages(exclude=('tests', 'docs')),
+    package_data={
+        'mccurse': ['locales/*/LC_MESSAGES/*.mo'],
+    },
 
     # Requirements
     install_requires=install_requires,
