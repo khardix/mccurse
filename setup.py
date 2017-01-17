@@ -3,6 +3,7 @@
 from distutils.command.build import build as orig_build
 from pathlib import Path
 from setuptools import setup, find_packages
+from setuptools.command.develop import develop as orig_develop
 from typing import Generator, TextIO
 
 
@@ -15,6 +16,12 @@ class build(orig_build):
     ] + orig_build.sub_commands + [
         # Commands after original build
     ]
+
+
+class develop(orig_develop):
+    def run(self):
+        self.run_command('compile_catalog')
+        super().run()
 
 
 # Helper functions
@@ -92,6 +99,7 @@ setup(
 
     cmdclass={
         'build': build,
+        'develop': develop,
     },
 
     packages=find_packages(exclude=('tests', 'docs')),
