@@ -6,6 +6,7 @@ import click
 
 from . import _
 from .curse import Game, Mod
+from .proxy import Authorization
 from .tui import select_mod
 from .util import default_data_dir
 
@@ -64,3 +65,21 @@ def search(refresh, text):
     if chosen is not None:
         project_url_fmt = 'https://www.curseforge.com/projects/{mod.id}/'
         click.launch(project_url_fmt.format(mod=chosen))
+
+
+@cli.command()
+@click.option(
+    '--user', '-u', prompt=_('Curse user name or email'),
+    help=_('Curse user name or email')+'.',
+)
+@click.password_option(
+    help=_('Curse password')+'.',
+)
+@click.pass_obj
+def auth(ctx, user, password):
+    """Authenticate user in Curse network."""
+
+    token = Authorization.login(user, password)
+
+    with ctx['authfile'].open(mode='w', encoding='utf-8') as file:
+        token.dump(file)
