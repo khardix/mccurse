@@ -7,6 +7,7 @@ import click
 from . import _
 from .curse import Game, Mod
 from .tui import select_mod
+from .util import default_data_dir
 
 
 # Static data
@@ -14,11 +15,20 @@ MINECRAFT = {'id': 432, 'name': 'Minecraft'}
 
 
 @click.group()
-def cli():
+@click.pass_context
+def cli(ctx):
     """Minecraft Curse CLI client."""
 
     # Initialize terminal for querying
     curses.setupterm()
+
+    # Add contextual values
+    ctx.obj = {
+        # Data directory
+        'datadir': default_data_dir(),
+        # Authentication file
+        'authfile': default_data_dir() / 'token.yaml',
+    }
 
 
 @cli.command()
