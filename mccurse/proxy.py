@@ -103,4 +103,8 @@ class Authorization(AuthBase):
             file: Open YAML text stream to write to.
         """
 
-        yaml.dump(attr.asdict(self), file, Dumper=YAMLDumper)
+        yaml.dump(
+            attr.asdict(self), file,
+            default_flow_style=False,
+            Dumper=YAMLDumper,
+        )
