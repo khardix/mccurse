@@ -14,5 +14,6 @@ translation = gettext.translation(
     domain=__package__,
     # Allow the locale files to be stored in system folder
     localedir=str(localedir) if localedir.is_dir() else None,
+    fallback=True,
 )
 _ = translation.gettext
