@@ -2,6 +2,7 @@ attrs
 click
 cerberus
 ijson
+iso8601
 pyyaml
 pyxdg
 requests

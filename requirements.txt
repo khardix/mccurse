@@ -10,6 +10,7 @@ extras==1.0.0
 fixtures==3.0.0
 ijson==2.3
 imagesize==0.7.1
+iso8601==0.1.11
 Jinja2==2.8
 linecache2==1.0.0
 MarkupSafe==0.23
