@@ -117,6 +117,16 @@ def test_release():
     assert A != B
 
 
+def test_release_and_yaml():
+    """Serialization of Release to YAML works as intended?"""
+
+    data = [pack.Release['Alpha']]
+    text = '- !release Alpha\n'
+
+    assert yamldump(data) == text
+    assert yamlload(text) == data
+
+
 def test_mod_file_schema(valid_mod_file, invalid_mod_file):
     """Mod file schema bahving as expected?"""
 

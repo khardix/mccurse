@@ -1,14 +1,15 @@
 """Mod-pack file format interface."""
 
+import re
 from copy import deepcopy
 from enum import Enum, unique
 from functools import total_ordering
 from typing import Any, Callable, TextIO
 
 import cerberus
-from iso8601 import parse_date as isodate
+from iso8601 import parse_date
 
-from .util import yamlload, yamldump
+from .util import yamlload, yamldump, YAMLLoader, YAMLDumper
 
 
 @unique
@@ -43,8 +44,34 @@ class Release(Enum):
         else:
             return NotImplemented
 
+    # Nicer serialization to YAML
+    @classmethod  # In order to not mix with enumeration members
+    def yaml_tag(cls) -> str:
+        return '!release'
 
-# Custom cerberus validators
+    @classmethod
+    def from_yaml(cls, loader, node) -> 'Release':
+        """Constructs release from an YAML node."""
+
+        name = loader.construct_scalar(node)
+        return cls[name]
+
+    @classmethod
+    def to_yaml(cls, dumper, release):
+        """Serialize release to an YAML node."""
+
+        return dumper.represent_scalar(cls.yaml_tag(), release.name)
+
+YAMLDumper.add_representer(Release, Release.to_yaml)
+YAMLLoader.add_constructor(Release.yaml_tag(), Release.from_yaml)
+YAMLLoader.add_implicit_resolver(
+    Release.yaml_tag(),
+    re.compile('^{}$'.format('|'.join(name for name in Release.__members__))),
+    None,
+)
+
+
+# Custom cerberus validators and coercers
 def valid_release(field: str, value: Any, error: Callable) -> bool:
     """Validate Release type."""
     if isinstance(value, Release):
