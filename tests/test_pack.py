@@ -1,11 +1,19 @@
 """Tests for the pack submodule"""
 
+from copy import deepcopy
 from datetime import datetime
+from io import StringIO
 
 import cerberus
 import pytest
 
 from mccurse import pack
+from mccurse.util import yamldump, yamlload
+
+
+@pytest.fixture
+def pack_validator() -> cerberus.Validator:
+    return cerberus.Validator(cerberus.schema_registry.get('pack'))
 
 
 @pytest.fixture
@@ -39,7 +47,7 @@ def empty_mod() -> dict:
 
 @pytest.fixture
 def valid_mod(empty_mod, valid_mod_file) -> dict:
-    return dict(**empty_mod, file=valid_mod_file)
+    return dict(**empty_mod, file=deepcopy(valid_mod_file))
 
 
 @pytest.fixture
@@ -61,7 +69,7 @@ def valid_pack(valid_mod) -> dict:
             'name': 'Minecraft',
             'version': '1.10.2',
         },
-        'mods': [valid_mod],
+        'mods': [deepcopy(valid_mod)],
         'dependencies': [],
     }
 
@@ -73,9 +81,27 @@ def invalid_pack(invalid_mod) -> dict:
             'name': 'Minecraft',
             'version': '1.10.2',
         },
-        'mods': [invalid_mod],
+        'mods': [deepcopy(invalid_mod)],
         'dependencies': [],
     }
+
+
+@pytest.fixture
+def valid_yaml(valid_pack) -> StringIO:
+    stream = StringIO()
+    yamldump(valid_pack, stream)
+    stream.seek(0)
+
+    return stream
+
+
+@pytest.fixture
+def invalid_yaml(invalid_pack) -> StringIO:
+    stream = StringIO()
+    yamldump(invalid_pack, stream)
+    stream.seek(0)
+
+    return stream
 
 
 def test_release():
@@ -131,3 +157,47 @@ def test_pack_schema(minimal_pack, valid_pack, invalid_pack):
     assert minimal.validate(minimal_pack)
     assert valid.validate(valid_pack)
     assert not invalid.validate(invalid_pack)
+
+
+def test_modpack_init(valid_pack, invalid_pack):
+    """ModPack.__init__ behaves as described?"""
+
+    mp = pack.ModPack(valid_pack)
+    assert mp.data
+
+    with pytest.raises(pack.ValidationError):
+        mp = pack.ModPack(invalid_pack)
+
+
+def test_modpack_create():
+    """Does ModPack.create work as expected?"""
+
+    name, version = 'Minecraft', '1.10.2'
+    mp = pack.ModPack.create(name, version)
+
+    assert mp.data['game']['name'] == name
+    assert mp.data['game']['version'] == version
+
+
+def test_modpack_load(pack_validator, valid_yaml, valid_pack, invalid_yaml):
+    """Loading from stream works as advertised?"""
+
+    mp = pack.ModPack.from_yaml(valid_yaml)
+    assert mp.data == pack_validator.normalized(valid_pack)
+
+    with pytest.raises(pack.ValidationError):
+        mp = pack.ModPack.from_yaml(invalid_yaml)
+
+
+def test_modpack_dump(pack_validator, valid_pack):
+    """Dumping to stream works as advertised?"""
+
+    stream = StringIO()
+    mp = pack.ModPack(valid_pack)
+    expect = pack_validator.normalized(deepcopy(valid_pack))
+
+    mp.to_yaml(stream)
+    print(stream.getvalue())
+    data = yamlload(stream.getvalue())
+
+    assert data == expect
