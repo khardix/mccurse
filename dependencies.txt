@@ -1,5 +1,6 @@
 attrs
 click
+cerberus
 ijson
 pyyaml
 pyxdg
