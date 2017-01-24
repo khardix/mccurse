@@ -1,12 +1,14 @@
 """Various utilities and language enhancements."""
 
 
+from datetime import datetime
 from functools import partial
 from pathlib import Path
 
 import requests
 import yaml
 import xdg.BaseDirectory
+from iso8601 import parse_date
 
 try:
     from yaml import CLoader as YAMLLoader, CDumper as YAMLDumper
@@ -50,6 +52,22 @@ def default_new_session(session: requests.Session = None) -> requests.Session:
         return requests.Session()
     else:
         return session
+
+
+# YAML tweaks
+
+# Force YAML to use ISO-8601 standard for timestamps
+def yaml_timestamp_representer(dumper, data):
+    """Custom representer for datetime objects in YAML."""
+    return dumper.represent_scalar('!!timestamp', data.isoformat())
+YAMLDumper.add_representer(datetime, yaml_timestamp_representer)
+
+
+def yaml_timestamp_constructor(loader, node):
+    """Custom constructor for datetime objects from YAML."""
+    value = loader.construct_scalar(node)
+    return parse_date(value)
+YAMLLoader.add_constructor('!!timestamp', yaml_timestamp_constructor)
 
 
 yamlload = partial(yaml.load, Loader=YAMLLoader)
