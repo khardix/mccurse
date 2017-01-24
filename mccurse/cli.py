@@ -1,11 +1,13 @@
 """Package command line interface."""
 
 import curses
+from pathlib import Path
 
 import click
 
 from . import _
 from .curse import Game, Mod
+from .pack import ModPack
 from .proxy import Authorization
 from .tui import select_mod
 from .util import default_data_dir
@@ -13,6 +15,22 @@ from .util import default_data_dir
 
 # Static data
 MINECRAFT = {'id': 432, 'name': 'Minecraft'}
+
+
+def check_minecraft_dir(root: Path) -> None:
+    """Checks if the directory is a suitable space for minecraft mods.
+
+    Keyword Arguments:
+        root: The checked dir – should be a root dir of minecraft profile.
+
+    Raises:
+        FileNotFoundError: When some expected file or directory is not found.
+    """
+
+    mods_dir = root / 'mods'
+
+    if not mods_dir.is_dir():
+        raise FileNotFoundError(str(mods_dir))
 
 
 @click.group()
@@ -83,3 +101,27 @@ def auth(ctx, user, password):
 
     with ctx['authfile'].open(mode='w', encoding='utf-8') as file:
         token.dump(file)
+
+
+@cli.command()
+@click.option(
+    '--profile', '-p', type=click.Path(exists=True, file_okay=False),
+    default='.',
+    help=_('Root profile directory')+'.',
+)
+@click.argument('version')
+def new(profile, version):
+    """Create a new modpack for Minecraft VERSION."""
+
+    mc = Game(**MINECRAFT)
+    profile = Path(str(profile))
+
+    try:
+        check_minecraft_dir(profile)
+    except FileNotFoundError as err:
+        msg = _('Profile directory is not valid: Missing {!s}').format(err)
+        raise SystemExit(msg) from None
+
+    modpack_file = profile / 'modpack.yaml'
+    with modpack_file.open(mode='w', encoding='utf-8') as stream:
+        ModPack.create(name=mc.name, version=version).to_yaml(stream)

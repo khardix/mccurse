@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mccurse 0.1.2.dev0+ngc2be2bb.d20170116\n"
 "Report-Msgid-Bugs-To: khardix@gmail.com\n"
-"POT-Creation-Date: 2017-01-17 22:49+0100\n"
+"POT-Creation-Date: 2017-01-24 23:35+0100\n"
 "PO-Revision-Date: 2017-01-16 20:31+0100\n"
 "Last-Translator: Jan Staněk <khardix@gmail.com>\n"
 "Language: cs\n"
@@ -20,33 +20,41 @@ msgstr ""
 "Generated-By: Babel 2.3.4\n"
 
 #. NOTE: Help for refresh flag
-#: mccurse/cli.py:39
+#: mccurse/cli.py:57
 msgid "Force refreshing of search data."
 msgstr "Vynutí obnovení prohledávaných dat."
 
-#: mccurse/cli.py:46
+#: mccurse/cli.py:64
 msgid "No text to search for!"
 msgstr "Chybí text k vyhledání!"
 
-#: mccurse/cli.py:54
+#: mccurse/cli.py:72
 msgid "Refreshing search data, please wait…"
 msgstr "Obnovuji data k prohledání, prosím o strpení…"
 
-#: mccurse/cli.py:59
+#: mccurse/cli.py:77
 msgid "Search results for \"{text}\""
 msgstr "Nalezené výsledky pro \"{text}\""
 
-#: mccurse/cli.py:60
+#: mccurse/cli.py:78
 msgid "Choose mod to open its project page, or press [q] to quit."
 msgstr ""
 "Zvolte mód pro otevření jeho projektové stránky, nebo stiskněte [q] pro "
 "ukončení."
 
-#: mccurse/cli.py:72 mccurse/cli.py:73
+#: mccurse/cli.py:90 mccurse/cli.py:91
 msgid "Curse user name or email"
 msgstr "Uživatelské jméno nebo e-mail pro Curse"
 
-#: mccurse/cli.py:76
+#: mccurse/cli.py:94
 msgid "Curse password"
 msgstr "Heslo pro Curse"
+
+#: mccurse/cli.py:110
+msgid "Root profile directory"
+msgstr "Kořenová složka profilu"
+
+#: mccurse/cli.py:122
+msgid "Profile directory is not valid: Missing {!s}"
+msgstr "Složka profilu není validní: Chybí {!s}"
 
