@@ -58,3 +58,23 @@ cerberus.schema_registry.add('mod-file', {
     'release': {'validator': valid_release, 'required': True, 'coerce': Release.__getitem__},  # noqa: E501
     'dependencies': {'type': 'list', 'schema': {'type': 'integer'}},
 })
+
+# Mod schema
+cerberus.schema_registry.add('mod', {
+    'id': {'type': 'integer', 'required': True, 'coerce': int},
+    'name': {'type': 'string'},
+    'file': {'type': 'dict', 'schema': 'mod-file', 'required': True},
+})
+
+# Game schema
+cerberus.schema_registry.add('game', {
+    'name': {'type': 'string'},
+    'version': {'type': 'string'},
+})
+
+# Pack file schema
+cerberus.schema_registry.add('pack', {
+    'game': {'type': 'dict', 'schema': 'game', 'required': True},
+    'mods': {'type': 'list', 'schema': {'type': 'dict', 'schema': 'mod'}},
+    'dependencies': {'type': 'list', 'schema': {'type': 'dict', 'schema': 'mod'}},  # noqa: E501
+})
