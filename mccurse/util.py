@@ -1,10 +1,17 @@
 """Various utilities and language enhancements."""
 
 
+from functools import partial
 from pathlib import Path
 
 import requests
+import yaml
 import xdg.BaseDirectory
+
+try:
+    from yaml import CLoader as YAMLLoader, CDumper as YAMLDumper
+except ImportError:
+    from yaml import Loader as YAMLLoader, Dumper as YAMLDumper
 
 
 # Consistent names definitions
@@ -43,3 +50,11 @@ def default_new_session(session: requests.Session = None) -> requests.Session:
         return requests.Session()
     else:
         return session
+
+
+yamlload = partial(yaml.load, Loader=YAMLLoader)
+yamlload.__doc__ = """Load and parse an YAML document."""
+
+
+yamldump = partial(yaml.dump, Dumper=YAMLDumper, default_flow_style=False)
+yamldump.__doc__ = """Dump and store an YAML document."""

@@ -4,16 +4,10 @@ from typing import TextIO
 
 import attr
 import requests
-import yaml
 from attr import validators as vld
 from requests.auth import AuthBase
 
-try:
-    from yaml import CLoader as YAMLLoader, CDumper as YAMLDumper
-except ImportError:
-    from yaml import Loader as YAMLLoader, Dumper as YAMLDumper
-
-from .util import default_new_session
+from .util import default_new_session, yamlload, yamldump
 
 
 HOME_URL = 'https://curse-rest-proxy.azurewebsites.net/api'
@@ -88,7 +82,7 @@ class Authorization(AuthBase):
             ValueError: When the stream does not contain expected data.
         """
 
-        data = yaml.load(file, Loader=YAMLLoader)
+        data = yamlload(file)
 
         if not data or 'user_id' not in data or 'token' not in data:
             msg = 'Invalid authorization data: {!r}'.format(data)
@@ -103,8 +97,4 @@ class Authorization(AuthBase):
             file: Open YAML text stream to write to.
         """
 
-        yaml.dump(
-            attr.asdict(self), file,
-            default_flow_style=False,
-            Dumper=YAMLDumper,
-        )
+        yamldump(attr.asdict(self), file)
