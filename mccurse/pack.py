@@ -2,9 +2,10 @@
 
 import re
 from copy import deepcopy
+from datetime import datetime
 from enum import Enum, unique
 from functools import total_ordering
-from typing import Any, Callable, TextIO
+from typing import Any, Callable, TextIO, Union
 
 import cerberus
 from iso8601 import parse_date
@@ -80,12 +81,30 @@ def valid_release(field: str, value: Any, error: Callable) -> bool:
         error(field, "Not a valid release: '{!s}'".format(value))
 
 
+def isodate(date: Union[str, datetime]) -> datetime:
+    """Convert ISO-8601 date to datetime, if needed."""
+
+    if isinstance(date, datetime):
+        return date
+    else:
+        return parse_date(date)
+
+
+def to_release(release: Union[str, Release]) -> Release:
+    """Convert Release name to Release, if necessary."""
+
+    if isinstance(release, Release):
+        return release
+    else:
+        return Release[release]
+
+
 # Mod file schema
 cerberus.schema_registry.add('mod-file', {
     'id': {'type': 'integer', 'required': True, 'coerce': int},
     'name': {'type': 'string', 'required': True},
     'date': {'type': 'datetime', 'required': True, 'coerce': isodate},
-    'release': {'validator': valid_release, 'required': True, 'coerce': Release.__getitem__},  # noqa: E501
+    'release': {'validator': valid_release, 'required': True, 'coerce': to_release},  # noqa: E501
     'dependencies': {'type': 'list', 'schema': {'type': 'integer'}},
 })
 
