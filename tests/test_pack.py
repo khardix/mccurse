@@ -121,7 +121,7 @@ def test_release_and_yaml():
     """Serialization of Release to YAML works as intended?"""
 
     data = [pack.Release['Alpha']]
-    text = '- !release Alpha\n'
+    text = '- Alpha\n'
 
     assert yaml.dump(data) == text
     assert yaml.load(text) == data
