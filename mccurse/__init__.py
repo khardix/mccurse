@@ -3,6 +3,9 @@
 import gettext
 from pathlib import Path
 
+#: Consistent names definitions
+RESOURCE_NAME = __package__
+
 #: Root of the package
 pkgdir = Path(__file__).resolve().parent
 
