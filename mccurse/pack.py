@@ -1,15 +1,13 @@
 """Mod-pack file format interface."""
 
 from copy import deepcopy
-from datetime import datetime
 from enum import Enum, unique
 from functools import total_ordering
-from typing import Any, Callable, TextIO, Union
+from typing import Any, TextIO
 
 import cerberus
-from iso8601 import parse_date
 
-from .util import yaml
+from .util import yaml, cerberus as crb
 
 
 @yaml.tag('!release', pattern='^(Alpha|Beta|Release)$')
@@ -57,39 +55,12 @@ class Release(Enum):
         return instance.name
 
 
-# Custom cerberus validators and coercers
-def valid_release(field: str, value: Any, error: Callable) -> bool:
-    """Validate Release type."""
-    if isinstance(value, Release):
-        return True
-    else:
-        error(field, "Not a valid release: '{!s}'".format(value))
-
-
-def isodate(date: Union[str, datetime]) -> datetime:
-    """Convert ISO-8601 date to datetime, if needed."""
-
-    if isinstance(date, datetime):
-        return date
-    else:
-        return parse_date(date)
-
-
-def to_release(release: Union[str, Release]) -> Release:
-    """Convert Release name to Release, if necessary."""
-
-    if isinstance(release, Release):
-        return release
-    else:
-        return Release[release]
-
-
 # Mod file schema
 cerberus.schema_registry.add('mod-file', {
     'id': {'type': 'integer', 'required': True, 'coerce': int},
     'name': {'type': 'string', 'required': True},
-    'date': {'type': 'datetime', 'required': True, 'coerce': isodate},
-    'release': {'validator': valid_release, 'required': True, 'coerce': to_release},  # noqa: E501
+    'date': {'type': 'datetime', 'required': True, 'coerce': crb.isodate},
+    'release': {'validator': crb.instance_of(Release), 'required': True, 'coerce': crb.fromname(Release)},  # noqa: E501
     'dependencies': {'type': 'list', 'schema': {'type': 'integer'}},
 })
 
