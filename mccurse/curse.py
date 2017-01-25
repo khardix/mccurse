@@ -322,6 +322,7 @@ class Game:
     # Primary attributes – must be supplied by user
     id = attr.ib(validator=vld.instance_of(int))  #: Curse internal game ID
     name = attr.ib(validator=vld.instance_of(str))  #: Human-readable name
+    version = attr.ib(validator=vld.instance_of(str))  #: Game version
 
     # Secondary/Derived attributes
     database = attr.ib(validator=vld.instance_of(Database))
@@ -331,6 +332,7 @@ class Game:
         self,
         id: int,
         name: str,
+        version: str,
         *,
         session: requests.Session = None,
         cache_dir: Path = None
@@ -340,6 +342,7 @@ class Game:
         Keyword arguments:
             id: Curse internal game identification.
             name: Human-readable name.
+            version: Game version.
             session: :class:`requests.Session` to use for network calls.
             cache_dir: Path to the game's cache (which include mod database).
         """
@@ -349,6 +352,7 @@ class Game:
 
         self.id = id
         self.name = name
+        self.version = version
 
         self.database = Database(game_name=name.lower(), root_dir=cache_dir)
         self.feed = Feed(game_id=id, session=session)

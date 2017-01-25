@@ -60,6 +60,7 @@ def game(tmpdir) -> curse.Game:
     return curse.Game(
         id=432,  # Minecraft id
         name='Minecraft',
+        version='1.10.2',
         cache_dir=Path(str(tmpdir)),
     )
 

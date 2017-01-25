@@ -1,0 +1,7 @@
+# Default values for known games
+# Structure:
+#   game name: id, default version
+
+minecraft:
+    id: 432
+    version: '1.11' # Should reflect latest game with available Forge, but update is manual :(

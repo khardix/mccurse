@@ -8,6 +8,7 @@ import cerberus
 import pytest
 
 from mccurse import pack
+from mccurse.curse import Game
 from mccurse.util import yaml
 
 
@@ -182,11 +183,11 @@ def test_modpack_init(valid_pack, invalid_pack):
 def test_modpack_create():
     """Does ModPack.create work as expected?"""
 
-    name, version = 'Minecraft', '1.10.2'
-    mp = pack.ModPack.create(name, version)
+    gm = Game(id=42, name='Test', version='dev')
+    mp = pack.ModPack.create(gm)
 
-    assert mp.data['game']['name'] == name
-    assert mp.data['game']['version'] == version
+    assert mp.data['game']['name'] == gm.name
+    assert mp.data['game']['version'] == gm.version
 
 
 def test_modpack_load(pack_validator, valid_yaml, valid_pack, invalid_yaml):

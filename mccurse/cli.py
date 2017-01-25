@@ -1,20 +1,43 @@
 """Package command line interface."""
 
 import curses
+from collections import ChainMap
 from pathlib import Path
+from typing import Mapping
 
 import click
 
-from . import _
+from . import _, pkgdir
 from .curse import Game, Mod
 from .pack import ModPack
 from .proxy import Authorization
 from .tui import select_mod
-from .util import default_data_dir
+from .util import default_data_dir, yaml
 
 
-# Static data
-MINECRAFT = {'id': 432, 'name': 'Minecraft'}
+def find_game(name: str, user_conf: Mapping = None) -> Mapping:
+    """Find default parameters for a game.
+
+    Keyword arguments:
+        name: The game name to look for, case insensitive.
+        user_conf: User-configured game defaults. This mapping should
+            have the same structure as the package's game defaults
+            configuration.
+
+    Returns:
+        Combined mapping of the parameter values, with user_conf
+        taking precedence.
+    """
+
+    user_conf = dict() if user_conf is None else user_conf
+
+    with (pkgdir/'games.yaml').open(encoding='utf-8') as stream:
+        package_defaults = yaml.load(stream)
+
+    return ChainMap(
+        user_conf.get(name.lower(), dict()),
+        package_defaults.get(name.lower(), dict()),
+    )
 
 
 def check_minecraft_dir(root: Path) -> None:
@@ -34,9 +57,27 @@ def check_minecraft_dir(root: Path) -> None:
 
 
 @click.group()
+@click.version_option()
+@click.option(
+    '--game', '-g',
+    type=click.STRING, default='Minecraft',
+    help=_('Specify the game to mod.'),
+)
+@click.option(
+    '--gamever', '-v',
+    type=click.STRING, default=None,
+    help=_('Specify the game version to mod.'),
+)
 @click.pass_context
-def cli(ctx):
+def cli(ctx, game, gamever):
     """Minecraft Curse CLI client."""
+
+    # Resolve game parameters
+    game_params = find_game(game)
+    if not game_params:
+        raise SystemExit(_("Unknown game '{game}'").format_map(locals()))
+    if gamever:
+        game_params['version'] = gamever
 
     # Initialize terminal for querying
     curses.setupterm()
@@ -47,6 +88,8 @@ def cli(ctx):
         'datadir': default_data_dir(),
         # Authentication file
         'authfile': default_data_dir() / 'token.yaml',
+        # Game to work with
+        'game': Game(name=game, **game_params),
     }
 
 
@@ -56,23 +99,24 @@ def cli(ctx):
     # NOTE: Help for refresh flag
     help=_('Force refreshing of search data.')
 )
+@click.pass_obj
 @click.argument('text', nargs=-1, type=str)
-def search(refresh, text):
+def search(ctx, refresh, text):
     """Search for TEXT in mods on CurseForge."""
 
     if not text:
         raise SystemExit(_('No text to search for!'))
 
-    mc = Game(**MINECRAFT)
+    game = ctx['game']
 
     text = ' '.join(text)
-    refresh = refresh or not mc.have_fresh_data()
+    refresh = refresh or not game.have_fresh_data()
 
     if refresh:
         click.echo(_('Refreshing search data, please wait…'), err=True)
-        mc.refresh_data()
+        game.refresh_data()
 
-    found = Mod.search(mc.database.session(), text)
+    found = Mod.search(game.database.session(), text)
 
     title = _('Search results for "{text}"').format(text=text)
     instructions = _(
@@ -109,11 +153,11 @@ def auth(ctx, user, password):
     default='.',
     help=_('Root profile directory')+'.',
 )
-@click.argument('version')
-def new(profile, version):
+@click.pass_obj
+def new(ctx, profile):
     """Create a new modpack for Minecraft VERSION."""
 
-    mc = Game(**MINECRAFT)
+    game = ctx['game']
     profile = Path(str(profile))
 
     try:
@@ -124,4 +168,4 @@ def new(profile, version):
 
     modpack_file = profile / 'modpack.yaml'
     with modpack_file.open(mode='w', encoding='utf-8') as stream:
-        ModPack.create(name=mc.name, version=version).to_yaml(stream)
+        ModPack.create(game).to_yaml(stream)
