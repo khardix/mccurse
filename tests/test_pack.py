@@ -8,7 +8,7 @@ import cerberus
 import pytest
 
 from mccurse import pack
-from mccurse.util import yamldump, yamlload
+from mccurse.util import yaml
 
 
 @pytest.fixture
@@ -89,7 +89,7 @@ def invalid_pack(invalid_mod) -> dict:
 @pytest.fixture
 def valid_yaml(valid_pack) -> StringIO:
     stream = StringIO()
-    yamldump(valid_pack, stream)
+    yaml.dump(valid_pack, stream)
     stream.seek(0)
 
     return stream
@@ -98,7 +98,7 @@ def valid_yaml(valid_pack) -> StringIO:
 @pytest.fixture
 def invalid_yaml(invalid_pack) -> StringIO:
     stream = StringIO()
-    yamldump(invalid_pack, stream)
+    yaml.dump(invalid_pack, stream)
     stream.seek(0)
 
     return stream
@@ -121,10 +121,10 @@ def test_release_and_yaml():
     """Serialization of Release to YAML works as intended?"""
 
     data = [pack.Release['Alpha']]
-    text = '- !release Alpha\n'
+    text = '- Alpha\n'
 
-    assert yamldump(data) == text
-    assert yamlload(text) == data
+    assert yaml.dump(data) == text
+    assert yaml.load(text) == data
 
 
 def test_mod_file_schema(valid_mod_file, invalid_mod_file):
@@ -208,6 +208,6 @@ def test_modpack_dump(pack_validator, valid_pack):
 
     mp.to_yaml(stream)
     print(stream.getvalue())
-    data = yamlload(stream.getvalue())
+    data = yaml.load(stream.getvalue())
 
     assert data == expect

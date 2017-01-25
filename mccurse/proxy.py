@@ -7,7 +7,7 @@ import requests
 from attr import validators as vld
 from requests.auth import AuthBase
 
-from .util import default_new_session, yamlload, yamldump
+from .util import default_new_session, yaml
 
 
 HOME_URL = 'https://curse-rest-proxy.azurewebsites.net/api'
@@ -82,7 +82,7 @@ class Authorization(AuthBase):
             ValueError: When the stream does not contain expected data.
         """
 
-        data = yamlload(file)
+        data = yaml.load(file)
 
         if not data or 'user_id' not in data or 'token' not in data:
             msg = 'Invalid authorization data: {!r}'.format(data)
@@ -97,4 +97,4 @@ class Authorization(AuthBase):
             file: Open YAML text stream to write to.
         """
 
-        yamldump(attr.asdict(self), file)
+        yaml.dump(attr.asdict(self), file)

@@ -1,6 +1,5 @@
 """Mod-pack file format interface."""
 
-import re
 from copy import deepcopy
 from datetime import datetime
 from enum import Enum, unique
@@ -10,9 +9,10 @@ from typing import Any, Callable, TextIO, Union
 import cerberus
 from iso8601 import parse_date
 
-from .util import yamlload, yamldump, YAMLLoader, YAMLDumper
+from .util import yaml
 
 
+@yaml.tag('!release', pattern='^(Alpha|Beta|Release)$')
 @unique
 @total_ordering
 class Release(Enum):
@@ -46,30 +46,15 @@ class Release(Enum):
             return NotImplemented
 
     # Nicer serialization to YAML
-    @classmethod  # In order to not mix with enumeration members
-    def yaml_tag(cls) -> str:
-        return '!release'
-
     @classmethod
-    def from_yaml(cls, loader, node) -> 'Release':
+    def from_yaml(cls, name) -> 'Release':
         """Constructs release from an YAML node."""
-
-        name = loader.construct_scalar(node)
         return cls[name]
 
     @classmethod
-    def to_yaml(cls, dumper, release):
+    def to_yaml(cls, instance):
         """Serialize release to an YAML node."""
-
-        return dumper.represent_scalar(cls.yaml_tag(), release.name)
-
-YAMLDumper.add_representer(Release, Release.to_yaml)
-YAMLLoader.add_constructor(Release.yaml_tag(), Release.from_yaml)
-YAMLLoader.add_implicit_resolver(
-    Release.yaml_tag(),
-    re.compile('^{}$'.format('|'.join(name for name in Release.__members__))),
-    None,
-)
+        return instance.name
 
 
 # Custom cerberus validators and coercers
@@ -191,7 +176,7 @@ class ModPack:
             ValidationError: If the stream does not contain valid pack data.
         """
 
-        return cls(yamlload(stream))
+        return cls(yaml.load(stream))
 
     def to_yaml(self, stream: TextIO) -> None:
         """Serialize and save the mod-pack data to YAML stream.
@@ -200,4 +185,4 @@ class ModPack:
             stream: The YAML stream to write to.
         """
 
-        yamldump(self.data, stream)
+        yaml.dump(self.data, stream)
