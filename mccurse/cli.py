@@ -34,6 +34,7 @@ def check_minecraft_dir(root: Path) -> None:
 
 
 @click.group()
+@click.version_option()
 @click.pass_context
 def cli(ctx):
     """Minecraft Curse CLI client."""
