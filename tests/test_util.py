@@ -9,6 +9,12 @@ import xdg
 from mccurse import util
 
 
+def test_expected_resource_name():
+    """Is the RESOURCE_NAME equivalent to the root package?"""
+
+    assert util.RESOURCE_NAME == 'mccurse'
+
+
 def test_cache_use_default():
     """Use cache dir when no dir specified?"""
 

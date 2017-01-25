@@ -6,8 +6,7 @@ from pathlib import Path
 import requests
 import xdg.BaseDirectory
 
-# Consistent names definitions
-RESOURCE_NAME = __package__
+from .. import RESOURCE_NAME
 
 
 # Filesystem standard directories
