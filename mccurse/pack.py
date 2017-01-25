@@ -1,59 +1,13 @@
 """Mod-pack file format interface."""
 
 from copy import deepcopy
-from enum import Enum, unique
-from functools import total_ordering
-from typing import Any, TextIO
+from typing import TextIO
 
 import cerberus
 
 from .curse import Game
+from .proxy import Release
 from .util import yaml, cerberus as crb
-
-
-@yaml.tag('!release', pattern='^(Alpha|Beta|Release)$')
-@unique
-@total_ordering
-class Release(Enum):
-    """Enumeration of the possible release types of a mod file."""
-
-    Alpha = 1
-    Beta = 2
-    Release = 4
-
-    # Make the releases comparable
-    def __is_same_enum(self: 'Release', other: Any) -> bool:
-        """Detect if the compared value is of the same class."""
-        return other.__class__ is self.__class__
-
-    def __eq__(self: 'Release', other: 'Release') -> bool:
-        if self.__is_same_enum(other):
-            return self.value == other.value
-        else:
-            return NotImplemented
-
-    def __ne__(self: 'Release', other: 'Release') -> bool:
-        if self.__is_same_enum(other):
-            return self.value != other.value
-        else:
-            return NotImplemented
-
-    def __lt__(self: 'Release', other: 'Release') -> bool:
-        if self.__is_same_enum(other):
-            return self.value < other.value
-        else:
-            return NotImplemented
-
-    # Nicer serialization to YAML
-    @classmethod
-    def from_yaml(cls, name) -> 'Release':
-        """Constructs release from an YAML node."""
-        return cls[name]
-
-    @classmethod
-    def to_yaml(cls, instance):
-        """Serialize release to an YAML node."""
-        return instance.name
 
 
 # Mod file schema

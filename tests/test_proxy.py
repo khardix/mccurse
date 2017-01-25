@@ -1,26 +1,14 @@
 """Tests for the proxy submodule"""
 
 from io import StringIO
-from functools import partial
 
 import attr
 import pytest
 import requests
 import responses
-import yaml
-
-try:
-    from yaml import CLoader as YAMLLoader, CDumper as YAMLDumper
-except ImportError:
-    from yaml import Loader as YAMLLoader, Dumper as YAMLDumper
 
 from mccurse import proxy
-
-
-# Helper functions
-
-yaml_dump = partial(yaml.dump, Dumper=YAMLDumper)
-yaml_load = partial(yaml.load, Loader=YAMLLoader)
+from mccurse.util import yaml
 
 
 # Fixtures
@@ -76,7 +64,7 @@ def test_authorization_login(dummy_auth):
 def test_auth_loading(dummy_auth):
     """Is the authentication properly loaded from file?"""
 
-    correct = StringIO(yaml_dump(attr.asdict(dummy_auth)))
+    correct = StringIO(yaml.dump(attr.asdict(dummy_auth)))
     empty = StringIO()
 
     assert proxy.Authorization.load(correct) == dummy_auth
@@ -91,6 +79,31 @@ def test_auth_store(dummy_auth):
     buffer = StringIO()
     dummy_auth.dump(buffer)
 
-    data = yaml_load(buffer.getvalue())
+    data = yaml.load(buffer.getvalue())
 
     assert data == attr.asdict(dummy_auth)
+
+
+# Release tests
+
+def test_release():
+    """Test release creation and ordering"""
+
+    A = proxy.Release['Alpha']
+    B = proxy.Release['Beta']
+    R = proxy.Release['Release']
+
+    assert A == proxy.Release['Alpha']
+    assert A < B < R
+    assert R > B > A
+    assert A != B
+
+
+def test_release_and_yaml():
+    """Serialization of Release to YAML works as intended?"""
+
+    data = [proxy.Release['Alpha']]
+    text = '- Alpha\n'
+
+    assert yaml.dump(data) == text
+    assert yaml.load(text) == data
