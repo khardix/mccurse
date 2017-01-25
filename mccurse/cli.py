@@ -15,8 +15,6 @@ from .tui import select_mod
 from .util import default_data_dir, yaml
 
 
-# Static data
-MINECRAFT = {'id': 432, 'name': 'Minecraft'}
 def find_game(name: str, user_conf: Mapping = None) -> Mapping:
     """Find default parameters for a game.
 
@@ -101,23 +99,24 @@ def cli(ctx, game, gamever):
     # NOTE: Help for refresh flag
     help=_('Force refreshing of search data.')
 )
+@click.pass_obj
 @click.argument('text', nargs=-1, type=str)
-def search(refresh, text):
+def search(ctx, refresh, text):
     """Search for TEXT in mods on CurseForge."""
 
     if not text:
         raise SystemExit(_('No text to search for!'))
 
-    mc = Game(**MINECRAFT)
+    game = ctx['game']
 
     text = ' '.join(text)
-    refresh = refresh or not mc.have_fresh_data()
+    refresh = refresh or not game.have_fresh_data()
 
     if refresh:
         click.echo(_('Refreshing search data, please wait…'), err=True)
-        mc.refresh_data()
+        game.refresh_data()
 
-    found = Mod.search(mc.database.session(), text)
+    found = Mod.search(game.database.session(), text)
 
     title = _('Search results for "{text}"').format(text=text)
     instructions = _(
@@ -154,11 +153,11 @@ def auth(ctx, user, password):
     default='.',
     help=_('Root profile directory')+'.',
 )
-@click.argument('version')
-def new(profile, version):
+@click.pass_obj
+def new(ctx, profile):
     """Create a new modpack for Minecraft VERSION."""
 
-    mc = Game(**MINECRAFT)
+    game = ctx['game']
     profile = Path(str(profile))
 
     try:
@@ -169,4 +168,4 @@ def new(profile, version):
 
     modpack_file = profile / 'modpack.yaml'
     with modpack_file.open(mode='w', encoding='utf-8') as stream:
-        ModPack.create(name=mc.name, version=version).to_yaml(stream)
+        ModPack.create(game).to_yaml(stream)
