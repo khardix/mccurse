@@ -7,6 +7,7 @@ from typing import Any, TextIO
 
 import cerberus
 
+from .curse import Game
 from .util import yaml, cerberus as crb
 
 
@@ -115,7 +116,7 @@ class ModPack:
         self.data = vld.document
 
     @classmethod
-    def create(cls, name: str, version: str) -> 'ModPack':
+    def create(cls, game: Game) -> 'ModPack':
         """Create new, empty mod-pack.
 
         Keyword arguments:
@@ -128,8 +129,8 @@ class ModPack:
 
         return cls({
             'game': {
-                'name': name,
-                'version': version,
+                'name': game.name,
+                'version': game.version,
             },
         })
 
