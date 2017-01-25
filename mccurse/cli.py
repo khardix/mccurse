@@ -1,20 +1,45 @@
 """Package command line interface."""
 
 import curses
+from collections import ChainMap
 from pathlib import Path
+from typing import Mapping
 
 import click
 
-from . import _
+from . import _, pkgdir
 from .curse import Game, Mod
 from .pack import ModPack
 from .proxy import Authorization
 from .tui import select_mod
-from .util import default_data_dir
+from .util import default_data_dir, yaml
 
 
 # Static data
 MINECRAFT = {'id': 432, 'name': 'Minecraft'}
+def find_game(name: str, user_conf: Mapping = None) -> Mapping:
+    """Find default parameters for a game.
+
+    Keyword arguments:
+        name: The game name to look for, case insensitive.
+        user_conf: User-configured game defaults. This mapping should
+            have the same structure as the package's game defaults
+            configuration.
+
+    Returns:
+        Combined mapping of the parameter values, with user_conf
+        taking precedence.
+    """
+
+    user_conf = dict() if user_conf is None else user_conf
+
+    with (pkgdir/'games.yaml').open(encoding='utf-8') as stream:
+        package_defaults = yaml.load(stream)
+
+    return ChainMap(
+        user_conf.get(name.lower(), dict()),
+        package_defaults.get(name.lower(), dict()),
+    )
 
 
 def check_minecraft_dir(root: Path) -> None:
@@ -35,9 +60,26 @@ def check_minecraft_dir(root: Path) -> None:
 
 @click.group()
 @click.version_option()
+@click.option(
+    '--game', '-g',
+    type=click.STRING, default='Minecraft',
+    help=_('Specify the game to mod.'),
+)
+@click.option(
+    '--gamever', '-v',
+    type=click.STRING, default=None,
+    help=_('Specify the game version to mod.'),
+)
 @click.pass_context
-def cli(ctx):
+def cli(ctx, game, gamever):
     """Minecraft Curse CLI client."""
+
+    # Resolve game parameters
+    game_params = find_game(game)
+    if not game_params:
+        raise SystemExit(_("Unknown game '{game}'").format_map(locals()))
+    if gamever:
+        game_params['version'] = gamever
 
     # Initialize terminal for querying
     curses.setupterm()
@@ -48,6 +90,8 @@ def cli(ctx):
         'datadir': default_data_dir(),
         # Authentication file
         'authfile': default_data_dir() / 'token.yaml',
+        # Game to work with
+        'game': Game(name=game, **game_params),
     }
 
 
