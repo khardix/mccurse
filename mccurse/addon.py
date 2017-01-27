@@ -2,8 +2,12 @@
    (i.e. Mod, mod's File, etc.).
 """
 
+from datetime import datetime
 from typing import Mapping, Sequence
+from weakref import WeakValueDictionary
 
+import attr
+from attr import validators as vld
 from sqlalchemy import Column, Integer, String
 from sqlalchemy import or_, bindparam
 from sqlalchemy.ext.baked import bakery
@@ -12,6 +16,8 @@ from sqlalchemy.orm.session import Session as SQLSession
 
 # Used exceptions -- make them available in current namespace
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound  # noqa: F401
+
+from .proxy import Release
 
 # Declarative base class for DB table definitions
 AddonBase = declarative_base()
@@ -112,3 +118,36 @@ class Mod(AddonBase):
         query += lambda q: q.filter(cls.name.like(bindparam('name')))
 
         return query(connection).params(name='%{}%'.format(name)).one()
+
+
+@attr.s(slots=True, hash=False)
+class File:
+    """Metadata of a file belonging to some mod."""
+
+    #: Cache of existing instances
+    cache = WeakValueDictionary()
+    # Enable weak references
+    __weakref__ = attr.ib(init=False, hash=False, cmp=False, repr=False)
+
+    #: File identification
+    id = attr.ib(validator=vld.instance_of(int))
+    #: Associated mod identification
+    mod_id = attr.ib(validator=vld.instance_of(int))
+    #: File system base name
+    name = attr.ib(validator=vld.instance_of(str))
+    #: Publication date
+    date = attr.ib(validator=vld.instance_of(datetime))
+    #: Release type
+    release = attr.ib(validator=vld.instance_of(Release))
+    #: Remote URL for download
+    url = attr.ib(validator=vld.instance_of(str))
+    #: Dependencies; {mod_id: File}
+    dependencies = attr.ib(
+        validator=vld.optional(vld.instance_of(dict)),
+        default=attr.Factory(dict),
+    )
+
+    def __attrs_post_init__(self):
+        """Register instance in the cache after successful initialization."""
+
+        self.__class__.cache[self.mod_id] = self

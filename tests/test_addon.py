@@ -1,9 +1,12 @@
 """Tests for addon submodule."""
 
+from datetime import datetime, timezone
+
 import pytest
+import responses
 from sqlalchemy.orm.session import Session as SQLSession
 
-from mccurse import addon, curse
+from mccurse import addon, curse, proxy
 
 
 # Fixtures
@@ -69,3 +72,32 @@ def test_mod_find(filled_database):
 
     with pytest.raises(addon.NoResultFound):
         addon.Mod.find(session, 'nonsense')
+
+
+# File tests
+
+@responses.activate
+def test_file_init():
+    """Does the File initialization behaves as expected?"""
+
+    a = addon.File(
+        id=42, mod_id=42,
+        name='test.jar', date=datetime.now(tz=timezone.utc),
+        release=proxy.Release.Release, url='https://httpbin.org',
+    )
+    b = addon.File(
+        id=43, mod_id=43,
+        name='test.jar', date=datetime.now(tz=timezone.utc),
+        release=proxy.Release.Alpha, url='https://httpbin.org',
+    )
+
+    assert all(f in addon.File.cache.values() for f in (a, b))
+
+    with pytest.raises(TypeError):
+        addon.File(
+            id='43', mod_id=43,
+            name='test.jar', date=datetime.now(tz=timezone.utc),
+            release=proxy.Release.Beta, url=None,
+        )
+
+    assert len(responses.calls) == 0
