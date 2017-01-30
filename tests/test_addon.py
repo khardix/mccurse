@@ -7,6 +7,7 @@ import responses
 from sqlalchemy.orm.session import Session as SQLSession
 
 from mccurse import addon, curse, proxy
+from mccurse.util import yaml
 
 
 # Fixtures
@@ -130,3 +131,33 @@ def test_file_from_proxy(date: datetime):
     assert a.id == a.mod.id == 42
     assert a.date == date
     assert a.release == proxy.Release.Release
+
+
+def test_file_yaml(date: datetime):
+    """Does the dumping and loading of File to/from YAML works?"""
+
+    EXPECT_FILE = addon.File(
+        id=42,
+        mod=addon.Mod(id=42, name='Test mod', summary='Testing'),
+        name='test.jar',
+        date=date,
+        release=proxy.Release['Beta'],
+        url='https://example.com/test.jar',
+        dependencies=[],
+    )
+    EXPECT_YAML = """
+        !modfile
+        file:
+            date: 2017-01-01T00:42:00+00:00
+            dependencies: []
+            id: 42
+            name: test.jar
+            release: Beta
+            url: https://example.com/test.jar
+        id: 42
+        name: Test mod
+        summary: Testing
+    """
+
+    assert yaml.load(yaml.dump(EXPECT_FILE)) == EXPECT_FILE
+    assert yaml.load(EXPECT_YAML) == EXPECT_FILE

@@ -19,6 +19,7 @@ from sqlalchemy.orm.session import Session as SQLSession
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound  # noqa: F401
 
 from .proxy import Release
+from .util import yaml
 
 # Declarative base class for DB table definitions
 AddonBase = declarative_base()
@@ -121,6 +122,7 @@ class Mod(AddonBase):
         return query(connection).params(name='%{}%'.format(name)).one()
 
 
+@yaml.tag('!modfile', type=yaml.NodeType.MAPPING)
 @attr.s(slots=True, hash=False)
 class File:
     """Metadata of a file belonging to some mod."""
@@ -177,3 +179,11 @@ class File:
         }
 
         return cls(**value_map)
+
+    @classmethod
+    def from_yaml(cls: Type['File'], data: Mapping) -> 'File':
+        """Re-construct the File from YAML.
+
+    @classmethod
+    def to_yaml(cls: Type['File'], instance: 'File') -> Mapping:
+        """Represent the instance as YAML node.
