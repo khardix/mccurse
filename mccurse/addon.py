@@ -143,8 +143,8 @@ class File:
     url = attr.ib(validator=vld.instance_of(str))
     #: Dependencies; {mod_id: File}
     dependencies = attr.ib(
-        validator=vld.optional(vld.instance_of(dict)),
-        default=attr.Factory(dict),
+        validator=vld.optional(vld.instance_of(list)),
+        default=attr.Factory(list),
     )
 
     def __attrs_post_init__(self):
