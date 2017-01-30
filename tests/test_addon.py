@@ -30,6 +30,13 @@ def filled_database(file_database) -> curse.Database:
     return file_database
 
 
+@pytest.fixture
+def date() -> datetime:
+    """Timezone-aware datetime."""
+
+    return datetime(year=2017, month=1, day=1, minute=42, tzinfo=timezone.utc)
+
+
 # Mod tests
 
 def test_json_parsing():
