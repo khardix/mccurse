@@ -184,6 +184,39 @@ class File:
     def from_yaml(cls: Type['File'], data: Mapping) -> 'File':
         """Re-construct the File from YAML.
 
+        Keyword arguments:
+            data: Interpreted YAML data.
+
+        Returns:
+            New instance of File corresponding to input data.
+        """
+
+        # Load mod part
+        mod = Mod(id=data['id'], name=data['name'], summary=data['summary'])
+
+        # Load file part
+        value_map = dict(mod=mod, **(data['file']))
+
+        return cls(**value_map)
+
     @classmethod
     def to_yaml(cls: Type['File'], instance: 'File') -> Mapping:
         """Represent the instance as YAML node.
+
+        Keyword arguments:
+            instance: The File to be represented.
+
+        Returns:
+            YAML representation of the instance.
+        """
+
+        # Dump mod part
+        columns = (str(c).split('.')[-1] for c in Mod.__table__.columns)
+        yml = {f: getattr(instance.mod, f) for f in columns}
+
+        # Dump the file part
+        yml['file'] = attr.asdict(instance)
+        for field in '__weakref__', 'mod':
+            del yml['file'][field]
+
+        return yml
