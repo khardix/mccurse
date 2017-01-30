@@ -4,7 +4,7 @@ import re
 from collections.abc import Callable
 from datetime import datetime
 from enum import Enum
-from functools import partial
+from functools import partial, partialmethod
 from operator import attrgetter
 from typing import Any
 
@@ -16,6 +16,10 @@ try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
     from yaml import Loader, Dumper
+
+
+# Force deep loading of dictionaries
+Loader.construct_mapping = partialmethod(Loader.construct_mapping, deep=True)
 
 
 # Force ISO-8601 timestamps
