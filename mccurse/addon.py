@@ -150,4 +150,4 @@ class File:
     def __attrs_post_init__(self):
         """Register instance in the cache after successful initialization."""
 
-        self.__class__.cache[self.mod_id] = self
+        self.__class__.cache[(self.mod_id, self.id)] = self
