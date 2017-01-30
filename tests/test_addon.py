@@ -36,9 +36,9 @@ def test_json_parsing():
     """Is the mod correctly constructed from JSON data?"""
 
     INPUT = {
-      "Id": 74072,
-      "Name": "Tinkers Construct",
-      "Summary": "Modify all the things, then do it again!",
+        "Id": 74072,
+        "Name": "Tinkers Construct",
+        "Summary": "Modify all the things, then do it again!",
     }
     EXPECT = addon.Mod(
         id=74072,
