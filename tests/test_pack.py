@@ -105,29 +105,6 @@ def invalid_yaml(invalid_pack) -> StringIO:
     return stream
 
 
-def test_release():
-    """Test release creation and ordering"""
-
-    A = pack.Release['Alpha']
-    B = pack.Release['Beta']
-    R = pack.Release['Release']
-
-    assert A == pack.Release['Alpha']
-    assert A < B < R
-    assert R > B > A
-    assert A != B
-
-
-def test_release_and_yaml():
-    """Serialization of Release to YAML works as intended?"""
-
-    data = [pack.Release['Alpha']]
-    text = '- Alpha\n'
-
-    assert yaml.dump(data) == text
-    assert yaml.load(text) == data
-
-
 def test_mod_file_schema(valid_mod_file, invalid_mod_file):
     """Mod file schema bahving as expected?"""
 

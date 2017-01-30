@@ -2,8 +2,12 @@
 
 
 import os
+from pathlib import Path
 
 import betamax
+import pytest
+
+from mccurse import curse
 
 
 # Ensure cassete dir
@@ -19,3 +23,11 @@ with betamax.Betamax.configure() as config:
         'record_mode': record_mode,
         'preserve_exact_body_bytes': True,
     })
+
+
+# Shared fixtures
+@pytest.fixture
+def file_database(tmpdir) -> curse.Database:
+    """Database potentially located in temp dir."""
+
+    return curse.Database('test', Path(str(tmpdir)))
