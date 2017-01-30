@@ -17,15 +17,17 @@ try:
 except ImportError:
     from yaml import Loader, Dumper
 
+TIMESTAMP_TAG = 'tag:yaml.org,2002:timestamp'
+
 
 # Force deep loading of dictionaries
 Loader.construct_mapping = partialmethod(Loader.construct_mapping, deep=True)
 
 
-# Force ISO-8601 timestamps
+# Provide own implementation of ISO8601 timestamps
 def timestamp_representer(dumper: Dumper, date: datetime) -> yaml.Node:
     """Custom representer for datetime objects in YAML."""
-    return dumper.represent_scalar('!!timestamp', date.isoformat())
+    return dumper.represent_scalar(TIMESTAMP_TAG, date.isoformat())
 Dumper.add_representer(datetime, timestamp_representer)
 
 
@@ -33,7 +35,7 @@ def timestamp_constructor(loader: Loader, node: yaml.Node) -> datetime:
     """Custom constructor for datetime objects from YAML."""
     value = loader.construct_scalar(node)
     return parse_date(value)
-Loader.add_constructor('!!timestamp', timestamp_constructor)
+Loader.add_constructor(TIMESTAMP_TAG, timestamp_constructor)
 
 
 # Decorator for nicer custom tags
