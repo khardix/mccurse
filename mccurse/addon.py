@@ -3,11 +3,12 @@
 """
 
 from datetime import datetime
-from typing import Mapping, Sequence
+from typing import Mapping, Sequence, Type, Union
 from weakref import WeakValueDictionary
 
 import attr
 from attr import validators as vld
+from iso8601 import parse_date
 from sqlalchemy import Column, Integer, String
 from sqlalchemy import or_, bindparam
 from sqlalchemy.ext.baked import bakery
@@ -151,3 +152,28 @@ class File:
         """Register instance in the cache after successful initialization."""
 
         self.__class__.cache[(self.mod_id, self.id)] = self
+
+    @classmethod
+    def from_proxy(cls: Type['File'], mod: Union[Mod, int], data: Mapping) -> 'File':
+        """Construct new File from RestProxy-compatible JSON data.
+
+        Keyword arguments:
+            mod: Either mod identification (int), or the mod (Mod)
+                to associate this file with.
+            data: The data to construct new File from.
+
+        Returns:
+            Newly constructed file.
+        """
+
+        value_map = {
+            'id': data['id'],
+            'mod_id': mod if isinstance(mod, int) else mod.id,
+            'name': data['file_name_on_disk'],
+            'date': parse_date(data['file_date']),
+            'release': Release[data['release_type']],
+            'url': data['download_url'],
+            'dependencies': data['dependencies'],
+        }
+
+        return cls(**value_map)
