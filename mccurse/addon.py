@@ -3,7 +3,7 @@
 """
 
 from datetime import datetime
-from typing import Mapping, Sequence, Type, Union
+from typing import Mapping, Sequence, Type
 from weakref import WeakValueDictionary
 
 import attr
@@ -133,7 +133,7 @@ class File:
     #: File identification
     id = attr.ib(validator=vld.instance_of(int))
     #: Associated mod identification
-    mod_id = attr.ib(validator=vld.instance_of(int))
+    mod = attr.ib(validator=vld.instance_of(Mod))
     #: File system base name
     name = attr.ib(validator=vld.instance_of(str))
     #: Publication date
@@ -151,10 +151,10 @@ class File:
     def __attrs_post_init__(self):
         """Register instance in the cache after successful initialization."""
 
-        self.__class__.cache[(self.mod_id, self.id)] = self
+        self.__class__.cache[(self.mod.id, self.id)] = self
 
     @classmethod
-    def from_proxy(cls: Type['File'], mod: Union[Mod, int], data: Mapping) -> 'File':
+    def from_proxy(cls: Type['File'], mod: Mod, data: Mapping) -> 'File':
         """Construct new File from RestProxy-compatible JSON data.
 
         Keyword arguments:
@@ -168,7 +168,7 @@ class File:
 
         value_map = {
             'id': data['id'],
-            'mod_id': mod if isinstance(mod, int) else mod.id,
+            'mod': mod,
             'name': data['file_name_on_disk'],
             'date': parse_date(data['file_date']),
             'release': Release[data['release_type']],

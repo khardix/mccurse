@@ -87,13 +87,15 @@ def test_mod_find(filled_database):
 def test_file_init():
     """Does the File initialization behaves as expected?"""
 
+    m = addon.Mod(id=42, name=str(), summary=str())
+
     a = addon.File(
-        id=42, mod_id=42,
+        id=42, mod=m,
         name='test.jar', date=datetime.now(tz=timezone.utc),
         release=proxy.Release.Release, url='https://httpbin.org',
     )
     b = addon.File(
-        id=43, mod_id=43,
+        id=43, mod=m,
         name='test.jar', date=datetime.now(tz=timezone.utc),
         release=proxy.Release.Alpha, url='https://httpbin.org',
     )
@@ -102,7 +104,7 @@ def test_file_init():
 
     with pytest.raises(TypeError):
         addon.File(
-            id='43', mod_id=43,
+            id='43', mod=m,
             name='test.jar', date=datetime.now(tz=timezone.utc),
             release=proxy.Release.Beta, url=None,
         )
@@ -123,10 +125,8 @@ def test_file_from_proxy(date: datetime):
     }
     mod = addon.Mod(id=42, name='Test mod', summary='Test')
 
-    a = addon.File.from_proxy(mod.id, valid_data)
-    b = addon.File.from_proxy(mod, valid_data)
+    a = addon.File.from_proxy(mod, valid_data)
 
-    assert a.id == a.mod_id == 42
+    assert a.id == a.mod.id == 42
     assert a.date == date
     assert a.release == proxy.Release.Release
-    assert a == b
