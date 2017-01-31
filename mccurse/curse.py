@@ -11,7 +11,7 @@ from datetime import datetime, timezone, timedelta
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
-from typing import TextIO
+from typing import TextIO, Type, Mapping
 
 import attr
 import ijson
@@ -20,11 +20,14 @@ import sqlalchemy
 from attr import validators as vld
 from sqlalchemy.orm.session import Session as SQLSession
 
+from . import _, PKGDATA
 from .addon import AddonBase, Mod
-from .util import default_new_session, default_cache_dir
+from .util import default_new_session, default_cache_dir, yaml
 
 # Used exceptions -- make them available in this namespace
 from requests.exceptions import HTTPError  # noqa: F401
+
+SUPPORTED_GAMES = PKGDATA / 'supported_games.yaml'
 
 
 @attr.s(slots=True)
@@ -205,6 +208,11 @@ class Database:
         return SQLSession(bind=self.engine)
 
 
+class UnsupportedGameError(ValueError):
+    """Attempt to instantiate game which is not supported."""
+
+
+@yaml.tag('!game', type=yaml.NodeType.MAPPING)
 @attr.s(init=False, slots=True)
 class Game:
     """Interface to the projects related to one game in Curse network.
@@ -220,8 +228,8 @@ class Game:
     version = attr.ib(validator=vld.instance_of(str))  #: Game version
 
     # Secondary/Derived attributes
-    database = attr.ib(validator=vld.instance_of(Database))
-    feed = attr.ib(validator=vld.instance_of(Feed))
+    database = attr.ib(validator=vld.instance_of(Database), cmp=False)
+    feed = attr.ib(validator=vld.instance_of(Feed), cmp=False)
 
     def __init__(
         self,
@@ -256,6 +264,53 @@ class Game:
         epoch = datetime.fromtimestamp(0, tz=timezone.utc)
         if self.database.version == epoch:
             AddonBase.metadata.create_all(self.database.engine)
+
+    @classmethod
+    def find(cls: Type['Game'], name: str, *, gamedb: Path = SUPPORTED_GAMES) -> 'Game':
+        """Find and create instance of a supported game.
+
+        Keyword arguments:
+            name: Name of the game to instantiate.
+            gamedb: Path to the YAML dictionary of supported games.
+
+        Returns:
+            Instance of the supported game.
+
+        Raises:
+            UnsupportedGameError: When the name is not found among supported games.
+        """
+
+        with gamedb.open(encoding='utf-8') as gamestream:
+            games = yaml.load(gamestream)
+
+        defaults = games.get(name.lower(), None)
+        if defaults is None:
+            msg = _("Game not supported: '{name}'").format_map(locals())
+            raise UnsupportedGameError(msg)
+
+        return cls(name=name.capitalize(), **defaults)
+
+    @classmethod
+    def from_yaml(cls: Type['Game'], data: Mapping) -> 'Game':
+        """Construct new instance from YAML data."""
+
+        instance = cls.find(data['name'])
+
+        # Replace game defaults with supplied values
+        for attrib, value in data.items():
+            setattr(instance, attrib, value)
+
+        return instance
+
+    @classmethod
+    def to_yaml(cls: Type['Game'], instance: 'Game') -> Mapping:
+        """Serialize an instance to YAML data."""
+
+        # Serialize only relevant parts
+        return {
+            'name': instance.name,
+            'version': instance.version,
+        }
 
     def refresh_data(self):
         """Download, store and index fresh version of the game add-ons."""
