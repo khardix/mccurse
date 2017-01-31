@@ -82,28 +82,3 @@ def test_auth_store(dummy_auth):
     data = yaml.load(buffer.getvalue())
 
     assert data == attr.asdict(dummy_auth)
-
-
-# Release tests
-
-def test_release():
-    """Test release creation and ordering"""
-
-    A = proxy.Release['Alpha']
-    B = proxy.Release['Beta']
-    R = proxy.Release['Release']
-
-    assert A == proxy.Release['Alpha']
-    assert A < B < R
-    assert R > B > A
-    assert A != B
-
-
-def test_release_and_yaml():
-    """Serialization of Release to YAML works as intended?"""
-
-    data = [proxy.Release['Alpha']]
-    text = '- Alpha\n'
-
-    assert yaml.dump(data) == text
-    assert yaml.load(text) == data

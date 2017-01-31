@@ -10,8 +10,8 @@ import pytest
 from iso8601 import parse_date
 
 from mccurse import pack
+from mccurse.addon import Release
 from mccurse.curse import Game
-from mccurse.proxy import Release
 from mccurse.util import yaml
 
 
