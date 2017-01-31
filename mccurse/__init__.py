@@ -7,10 +7,13 @@ from pathlib import Path
 RESOURCE_NAME = __package__
 
 #: Root of the package
-pkgdir = Path(__file__).resolve().parent
+PKGDIR = Path(__file__).resolve().parent
+
+#: Package data directory
+PKGDATA = PKGDIR / '_data'
 
 #: Root of the locale files
-localedir = pkgdir / '_data_' / 'locales'
+localedir = PKGDATA / 'locales'
 
 #: Translation machinery for the app
 translation = gettext.translation(

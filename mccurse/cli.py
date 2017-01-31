@@ -7,7 +7,7 @@ from typing import Mapping
 
 import click
 
-from . import _, pkgdir
+from . import _, PKGDATA
 from .curse import Game, Mod
 from .pack import ModPack
 from .proxy import Authorization
@@ -31,7 +31,7 @@ def find_game(name: str, user_conf: Mapping = None) -> Mapping:
 
     user_conf = dict() if user_conf is None else user_conf
 
-    with (pkgdir/'_data_'/'supported_games.yaml').open(encoding='utf-8') as stream:
+    with (PKGDATA / 'supported_games.yaml').open(encoding='utf-8') as stream:
         package_defaults = yaml.load(stream)
 
     return ChainMap(
