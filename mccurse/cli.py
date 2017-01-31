@@ -31,7 +31,7 @@ def find_game(name: str, user_conf: Mapping = None) -> Mapping:
 
     user_conf = dict() if user_conf is None else user_conf
 
-    with (pkgdir/'games.yaml').open(encoding='utf-8') as stream:
+    with (pkgdir/'_data_'/'supported_games.yaml').open(encoding='utf-8') as stream:
         package_defaults = yaml.load(stream)
 
     return ChainMap(

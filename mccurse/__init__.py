@@ -10,7 +10,7 @@ RESOURCE_NAME = __package__
 pkgdir = Path(__file__).resolve().parent
 
 #: Root of the locale files
-localedir = pkgdir/'locales'
+localedir = pkgdir / '_data_' / 'locales'
 
 #: Translation machinery for the app
 translation = gettext.translation(

@@ -104,10 +104,7 @@ setup(
 
     packages=find_packages(exclude=('tests', 'docs')),
     package_data={
-        'mccurse': [
-            'locales/*/LC_MESSAGES/*.mo',
-            'games.yaml',
-        ],
+        'mccurse': ['_data_/*'],
     },
 
     # Requirements
