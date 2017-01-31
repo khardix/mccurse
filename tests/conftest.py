@@ -7,7 +7,7 @@ from pathlib import Path
 import betamax
 import pytest
 
-from mccurse import curse
+from mccurse import addon, curse
 
 
 # Ensure cassete dir
@@ -31,3 +31,27 @@ def file_database(tmpdir) -> curse.Database:
     """Database potentially located in temp dir."""
 
     return curse.Database('test', Path(str(tmpdir)))
+
+
+@pytest.fixture
+def tinkers_construct() -> addon.Mod:
+    """Tinkers Construct project data"""
+
+    data = {
+        'name': 'Tinkers Construct',
+        'id': 74072,
+        'summary': 'Modify all the things, then do it again!',
+    }
+    return addon.Mod(**data)
+
+
+@pytest.fixture
+def minecraft() -> curse.Game:
+    """Minecraft version for testing."""
+
+    data = {
+        'name': 'Minecraft',
+        'id': 432,
+        'version': '1.10.2',
+    }
+    return curse.Game(**data)
