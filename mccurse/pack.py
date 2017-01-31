@@ -115,3 +115,22 @@ def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:
         Ordered mapping of all the dependencies, in breadth-first order,
         including the root.
     """
+
+    # Result – resolved dependencies
+    resolved = OrderedDict()
+    resolved[root.mod.id] = root
+    # Which mods needs to be checked
+    queue = list(root.dependencies)
+
+    for dep_id in queue:
+        if dep_id in resolved:
+            continue
+
+        # Get the dependency
+        dependency = pool[dep_id]
+        # Mark its dependencies for processing
+        queue.extend(dependency.dependencies)
+        # Add the dependency to chain
+        resolved[dep_id] = dependency
+
+    return resolved
