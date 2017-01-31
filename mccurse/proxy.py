@@ -1,5 +1,6 @@
 """Interface to the Curse.RestProxy service."""
 
+from operator import attrgetter
 from typing import TextIO, Optional
 
 import attr
@@ -123,3 +124,22 @@ def latest(
     Raises:
         requests.HTTPError: On HTTP-related errors.
     """
+
+    # Resolve parameters
+    session = default_new_session(session)
+    url = HOME_URL + '/addon/{mod.id}/files'.format_map(locals())
+
+    # Get data from proxy
+    resp = session.get(url)
+    resp.raise_for_status()
+
+    # Filter available files
+    available = (
+        File.from_proxy(mod, f)
+        for f in resp.json()['files']
+        if game.version in f['game_version']
+    )
+    stable = filter(lambda f: f.release >= min_release, available)
+    candidates = iter(sorted(stable, key=attrgetter('date'), reverse=True))
+
+    return next(candidates, None)
