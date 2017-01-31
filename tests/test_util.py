@@ -3,6 +3,7 @@
 
 from pathlib import Path
 
+import pytest
 import requests
 import xdg
 
@@ -66,3 +67,27 @@ def test_make_new_session():
     INPUT = None
 
     assert isinstance(util.default_new_session(INPUT), requests.Session)
+
+
+@pytest.mark.parametrize('key,value', [
+    (42, 42),
+    ('42', 42),
+])
+def test_lazydict_valid(key, value):
+    """Lazydict functions as expected?"""
+
+    d = util.lazydict(int)
+
+    assert d[key] == value
+
+
+@pytest.mark.parametrize('key,exception', [
+    ('abc', ValueError),
+])
+def test_lazydict_exceptions(key, exception):
+    """Lazydict not consuming excpetions?"""
+
+    d = util.lazydict(int)
+
+    with pytest.raises(exception):
+        x = d[key]  # noqa
