@@ -2,13 +2,14 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Type, Union
+from typing import Any, Callable, Type, TypeVar, Union
 
 from iso8601 import parse_date
 
 
 # Named generic types
 ErrorCallback = Callable[[Any, str], None]
+T = TypeVar('T')
 
 
 # Custom validators
@@ -27,7 +28,7 @@ def instance_of(cls: Type) -> Callable[[Any, Any, ErrorCallback], bool]:
             return True
         else:
             msg = "Value '{!s}' is not of type '{!s}'".format(
-                    value, cls.__name__,
+                value, cls.__name__,
             )
             error(field, msg)
             return False
@@ -69,5 +70,25 @@ def fromname(cls: Type[Enum]) -> Callable[[Union[str, Enum]], Enum]:
             return cls[value]
         else:
             return value
+
+    return coerce
+
+
+def fromyaml(cls: Type[T]) -> Callable[[Any], T]:
+    """Create coercer for an arbitrary type that can be constructed from YAML.
+
+    Keyword arguments:
+        cls: The type to coerce to.
+
+    Returns:
+        Coercer which tries to convert to appropriate type, leaving values
+        already of that type unchanged.
+    """
+
+    def coerce(value: Any) -> T:
+        if isinstance(value, cls):
+            return value
+        else:
+            return cls.from_yaml(value)
 
     return coerce

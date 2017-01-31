@@ -6,7 +6,7 @@ import pytest
 import responses
 from sqlalchemy.orm.session import Session as SQLSession
 
-from mccurse import addon, curse, proxy
+from mccurse import addon, curse
 from mccurse.util import yaml
 
 
@@ -82,6 +82,31 @@ def test_mod_find(filled_database):
         addon.Mod.find(session, 'nonsense')
 
 
+# Release tests
+
+def test_release():
+    """Test release creation and ordering"""
+
+    A = addon.Release['Alpha']
+    B = addon.Release['Beta']
+    R = addon.Release['Release']
+
+    assert A == addon.Release['Alpha']
+    assert A < B < R
+    assert R > B > A
+    assert A != B
+
+
+def test_release_and_yaml():
+    """Serialization of Release to YAML works as intended?"""
+
+    data = [addon.Release['Alpha']]
+    text = '- Alpha\n'
+
+    assert yaml.dump(data) == text
+    assert yaml.load(text) == data
+
+
 # File tests
 
 @responses.activate
@@ -93,12 +118,12 @@ def test_file_init():
     a = addon.File(
         id=42, mod=m,
         name='test.jar', date=datetime.now(tz=timezone.utc),
-        release=proxy.Release.Release, url='https://httpbin.org',
+        release=addon.Release.Release, url='https://httpbin.org',
     )
     b = addon.File(
         id=43, mod=m,
         name='test.jar', date=datetime.now(tz=timezone.utc),
-        release=proxy.Release.Alpha, url='https://httpbin.org',
+        release=addon.Release.Alpha, url='https://httpbin.org',
     )
 
     assert all(f in addon.File.cache.values() for f in (a, b))
@@ -107,7 +132,7 @@ def test_file_init():
         addon.File(
             id='43', mod=m,
             name='test.jar', date=datetime.now(tz=timezone.utc),
-            release=proxy.Release.Beta, url=None,
+            release=addon.Release.Beta, url=None,
         )
 
     assert len(responses.calls) == 0
@@ -130,7 +155,7 @@ def test_file_from_proxy(date: datetime):
 
     assert a.id == a.mod.id == 42
     assert a.date == date
-    assert a.release == proxy.Release.Release
+    assert a.release == addon.Release.Release
 
 
 def test_file_yaml(date: datetime):
@@ -141,7 +166,7 @@ def test_file_yaml(date: datetime):
         mod=addon.Mod(id=42, name='Test mod', summary='Testing'),
         name='test.jar',
         date=date,
-        release=proxy.Release['Beta'],
+        release=addon.Release['Beta'],
         url='https://example.com/test.jar',
         dependencies=[],
     )

@@ -1,30 +1,15 @@
 """Mod-pack file format interface."""
 
+from collections import OrderedDict
 from copy import deepcopy
-from typing import TextIO
+from typing import Mapping, TextIO
 
 import cerberus
 
+from .addon import File
 from .curse import Game
-from .proxy import Release
 from .util import yaml, cerberus as crb
 
-
-# Mod file schema
-cerberus.schema_registry.add('mod-file', {
-    'id': {'type': 'integer', 'required': True, 'coerce': int},
-    'name': {'type': 'string', 'required': True},
-    'date': {'type': 'datetime', 'required': True, 'coerce': crb.isodate},
-    'release': {'validator': crb.instance_of(Release), 'required': True, 'coerce': crb.fromname(Release)},  # noqa: E501
-    'dependencies': {'type': 'list', 'schema': {'type': 'integer'}},
-})
-
-# Mod schema
-cerberus.schema_registry.add('mod', {
-    'id': {'type': 'integer', 'required': True, 'coerce': int},
-    'name': {'type': 'string'},
-    'file': {'type': 'dict', 'schema': 'mod-file', 'required': True},
-})
 
 # Game schema
 cerberus.schema_registry.add('game', {
@@ -35,8 +20,12 @@ cerberus.schema_registry.add('game', {
 # Pack file schema
 cerberus.schema_registry.add('pack', {
     'game': {'type': 'dict', 'schema': 'game', 'required': True},
-    'mods': {'type': 'list', 'schema': {'type': 'dict', 'schema': 'mod'}},
-    'dependencies': {'type': 'list', 'schema': {'type': 'dict', 'schema': 'mod'}},  # noqa: E501
+    'mods': {'type': 'list', 'schema': {
+        'validator': crb.instance_of(File), 'coerce': crb.fromyaml(File),
+    }},
+    'dependencies': {'type': 'list', 'schema': {
+        'validator': crb.instance_of(File), 'coerce': crb.fromyaml(File),
+    }},
 })
 
 
@@ -112,3 +101,36 @@ class ModPack:
         """
 
         yaml.dump(self.data, stream)
+
+
+def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:
+    """Fully resolve dependecies of a root :class:`addon.File`.
+
+    Keyword arguments:
+        root: The `addon.File` to resolve dependencies for.
+        pool: Available potential dependencies. Mapping from mod identification
+            to corresponding file.
+
+    Returns:
+        Ordered mapping of all the dependencies, in breadth-first order,
+        including the root.
+    """
+
+    # Result – resolved dependencies
+    resolved = OrderedDict()
+    resolved[root.mod.id] = root
+    # Which mods needs to be checked
+    queue = list(root.dependencies)
+
+    for dep_id in queue:
+        if dep_id in resolved:
+            continue
+
+        # Get the dependency
+        dependency = pool[dep_id]
+        # Mark its dependencies for processing
+        queue.extend(dependency.dependencies)
+        # Add the dependency to chain
+        resolved[dep_id] = dependency
+
+    return resolved

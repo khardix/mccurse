@@ -1,14 +1,15 @@
 """Interface to the Curse.RestProxy service."""
 
-from enum import Enum, unique
-from functools import total_ordering
-from typing import Any, TextIO
+from operator import attrgetter
+from typing import TextIO, Optional
 
 import attr
 import requests
 from attr import validators as vld
 from requests.auth import AuthBase
 
+from .addon import File, Mod, Release
+from .curse import Game
 from .util import default_new_session, yaml
 
 
@@ -102,46 +103,43 @@ class Authorization(AuthBase):
         yaml.dump(attr.asdict(self), file)
 
 
-@yaml.tag('!release', pattern='^(Alpha|Beta|Release)$')
-@unique
-@total_ordering
-class Release(Enum):
-    """Enumeration of the possible release types of a mod file."""
+def latest(
+    game: Game,
+    mod: Mod,
+    min_release: Release,
+    *,
+    session: requests.Session = None
+) -> Optional[File]:
+    """Loads latest suitable addon file data from RestProxy.
 
-    Alpha = 1
-    Beta = 2
-    Release = 4
+    Keyword arguments:
+        game: Game (version) to get the file for.
+        mod: The mod to get the file for.
+        min_release: Minimal release type to consider.
+        session: :class:`requests.Session` to use [default: new session].
 
-    # Make the releases comparable
-    def __is_same_enum(self: 'Release', other: Any) -> bool:
-        """Detect if the compared value is of the same class."""
-        return other.__class__ is self.__class__
+    Returns:
+        Latest available :class:`File`, or None if no file is available.
 
-    def __eq__(self: 'Release', other: 'Release') -> bool:
-        if self.__is_same_enum(other):
-            return self.value == other.value
-        else:
-            return NotImplemented
+    Raises:
+        requests.HTTPError: On HTTP-related errors.
+    """
 
-    def __ne__(self: 'Release', other: 'Release') -> bool:
-        if self.__is_same_enum(other):
-            return self.value != other.value
-        else:
-            return NotImplemented
+    # Resolve parameters
+    session = default_new_session(session)
+    url = HOME_URL + '/addon/{mod.id}/files'.format_map(locals())
 
-    def __lt__(self: 'Release', other: 'Release') -> bool:
-        if self.__is_same_enum(other):
-            return self.value < other.value
-        else:
-            return NotImplemented
+    # Get data from proxy
+    resp = session.get(url)
+    resp.raise_for_status()
 
-    # Nicer serialization to YAML
-    @classmethod
-    def from_yaml(cls, name) -> 'Release':
-        """Constructs release from an YAML node."""
-        return cls[name]
+    # Filter available files
+    available = (
+        File.from_proxy(mod, f)
+        for f in resp.json()['files']
+        if game.version in f['game_version']
+    )
+    stable = filter(lambda f: f.release >= min_release, available)
+    candidates = iter(sorted(stable, key=attrgetter('date'), reverse=True))
 
-    @classmethod
-    def to_yaml(cls, instance):
-        """Serialize release to an YAML node."""
-        return instance.name
+    return next(candidates, None)

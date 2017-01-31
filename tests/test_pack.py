@@ -1,14 +1,20 @@
 """Tests for the pack submodule"""
 
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timezone
 from io import StringIO
+from itertools import repeat
+from pprint import pprint
+from typing import Sequence, Tuple
 
 import cerberus
 import pytest
+from iso8601 import parse_date
 
 from mccurse import pack
+from mccurse.addon import Release, File, Mod
 from mccurse.curse import Game
+from mccurse.pack import resolve
 from mccurse.util import yaml
 
 
@@ -20,10 +26,11 @@ def pack_validator() -> cerberus.Validator:
 @pytest.fixture
 def valid_mod_file() -> dict:
     return {
-        'id': '42',
+        'id': 42,
         'name': 'test-mod-file.jar',
-        'date': '2017-01-24T18:01+01:00',
-        'release': 'Beta',
+        'date': parse_date('2017-01-24T18:01+01:00'),
+        'release': Release['Beta'],
+        'url': 'https://example.com/test-mod-file.jar',
     }
 
 
@@ -43,6 +50,7 @@ def empty_mod() -> dict:
     return {
         'id': 74072,
         'name': 'Tinkers Contruct',
+        'summary': 'Modify all the tools, then do it again!',
     }
 
 
@@ -105,46 +113,78 @@ def invalid_yaml(invalid_pack) -> StringIO:
     return stream
 
 
-def test_mod_file_schema(valid_mod_file, invalid_mod_file):
-    """Mod file schema bahving as expected?"""
+# Dependency fixtures and helpers
 
-    schema = cerberus.schema_registry.get('mod-file')
-    vld = cerberus.Validator(schema)
-    inv = cerberus.Validator(schema)
+def makefile(name, mod_id, *deps):
+    """Shortcut for creating instances of File."""
 
-    assert vld.validate(valid_mod_file)
-    assert isinstance(vld.document['id'], int)
-    date = vld.document['date']
-    assert isinstance(date, datetime) and date.tzinfo is not None
-    assert isinstance(vld.document['release'], pack.Release)
+    TIMESTAMP = datetime.now(tz=timezone.utc)
+    RELEASE = Release.Release
 
-    assert not inv.validate(invalid_mod_file)
-    assert inv.errors
+    return File(
+        mod=Mod(name=name.upper(), id=mod_id, summary=name),
+        id=(42 + mod_id),
+        name='{}.jar'.format(name),
+        date=TIMESTAMP,
+        release=RELEASE,
+        url='http://example.com/{}.jar'.format(name),
+        dependencies=list(deps),
+    )
 
 
-def test_mod_schema(valid_mod, invalid_mod):
-    """Mod schema behaving as expected?"""
+@pytest.fixture
+def multiple_dependency() -> Tuple[File, dict, Sequence]:
+    """Dependency graph with shared dependencies."""
 
-    schema = cerberus.schema_registry.get('mod')
-    vld = cerberus.Validator(schema)
-    inv = cerberus.Validator(schema)
+    root = makefile('a', 1, 2, 3)
+    deps = {
+        1: root,
+        2: makefile('b', 2, 3, 4),
+        3: makefile('c', 3),
+        4: makefile('d', 4, 3),
+        # Extra available, should not be included
+        5: makefile('e', 5, 3),
+    }
+    order = [1, 2, 3, 4]
 
-    assert vld.validate(valid_mod)
-    assert isinstance(vld.document['id'], int)
-    assert isinstance(vld.document['file']['id'], int)
+    return root, deps, order
 
-    assert not inv.validate(invalid_mod)
+
+@pytest.fixture
+def circular_dependency() -> Tuple[File, dict, Sequence]:
+    """Dependency graph with a circle."""
+
+    root = makefile('a', 1, 2)
+    deps = {
+        1: root,
+        2: makefile('b', 2, 3),
+        3: makefile('c', 3, 1),
+    }
+    order = [1, 2, 3]
+
+    return root, deps, order
 
 
 def test_pack_schema(minimal_pack, valid_pack, invalid_pack):
     """Pack schema behaving as expected?"""
 
     schema = cerberus.schema_registry.get('pack')
-    minimal, valid, invalid = map(cerberus.Validator, [schema]*3)
+    validators = map(cerberus.Validator, repeat(schema))
+    operands = zip(
+        ('minimal', 'valid', 'invalid'),
+        validators,
+        (minimal_pack, valid_pack, invalid_pack),
+    )
+    result = {
+        name: {'status': vld.validate(pack), 'doc': vld.document, 'err': vld.errors}
+        for name, vld, pack in operands
+    }
 
-    assert minimal.validate(minimal_pack)
-    assert valid.validate(valid_pack)
-    assert not invalid.validate(invalid_pack)
+    pprint(result)
+
+    assert result['minimal']['status'] == True
+    assert result['valid']['status'] == True
+    assert result['invalid']['status'] == False
 
 
 def test_modpack_init(valid_pack, invalid_pack):
@@ -189,3 +229,39 @@ def test_modpack_dump(pack_validator, valid_pack):
     data = yaml.load(stream.getvalue())
 
     assert data == expect
+
+
+# Resolve tests
+
+def test_resolve_multiple(multiple_dependency):
+    """Resolving works right with shared dependencies?"""
+
+    root, pool, EXPECT_ORDER = multiple_dependency
+
+    resolution = resolve(root, pool)
+
+    assert len(resolution) == len(EXPECT_ORDER)
+    assert list(resolution.keys()) == EXPECT_ORDER
+
+    required = set(root.dependencies)
+    for d in resolution.values():
+        required.update(d.dependencies)
+
+    assert all(d in resolution for d in required)
+
+
+def test_resolve_cycle(circular_dependency):
+    """Resolving works right with circular dependencies?"""
+
+    root, pool, EXPECT_ORDER = circular_dependency
+
+    resolution = resolve(root, pool)
+
+    assert len(resolution) == len(EXPECT_ORDER)
+    assert list(resolution.keys()) == EXPECT_ORDER
+
+    required = set(root.dependencies)
+    for d in resolution.values():
+        required.update(d.dependencies)
+
+    assert all(d in resolution for d in required)
