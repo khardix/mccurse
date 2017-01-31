@@ -1,12 +1,14 @@
 """Interface to the Curse.RestProxy service."""
 
-from typing import TextIO
+from typing import TextIO, Optional
 
 import attr
 import requests
 from attr import validators as vld
 from requests.auth import AuthBase
 
+from .addon import File, Mod, Release
+from .curse import Game
 from .util import default_new_session, yaml
 
 
@@ -98,3 +100,26 @@ class Authorization(AuthBase):
         """
 
         yaml.dump(attr.asdict(self), file)
+
+
+def latest(
+    game: Game,
+    mod: Mod,
+    min_release: Release,
+    *,
+    session: requests.Session = None
+) -> Optional[File]:
+    """Loads latest suitable addon file data from RestProxy.
+
+    Keyword arguments:
+        game: Game (version) to get the file for.
+        mod: The mod to get the file for.
+        min_release: Minimal release type to consider.
+        session: :class:`requests.Session` to use [default: new session].
+
+    Returns:
+        Latest available :class:`File`, or None if no file is available.
+
+    Raises:
+        requests.HTTPError: On HTTP-related errors.
+    """
