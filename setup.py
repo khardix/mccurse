@@ -51,8 +51,6 @@ with deps.open(encoding='utf-8') as d:
     install_requires = list(extract_deps(d))
 with test_deps.open(encoding='utf-8') as td:
     test_requires = list(extract_deps(td))
-    # XXX add missing dependency specified with git URL
-    test_requires += ['pyfakefs>2.9']
 
 setup_requires = [
     'setuptools_scm',

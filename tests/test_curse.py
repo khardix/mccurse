@@ -4,6 +4,7 @@
 import bz2
 import datetime
 import json
+from functools import partial
 from pathlib import Path
 
 import betamax
@@ -11,8 +12,10 @@ import ijson
 import pytest
 import requests
 import responses
+from pyfakefs import fake_filesystem, fake_pathlib
 
 from mccurse import curse
+from mccurse.util import yaml
 
 
 # Fixtures
@@ -35,6 +38,22 @@ def game(tmpdir) -> curse.Game:
         version='1.10.2',
         cache_dir=Path(str(tmpdir)),
     )
+
+
+@pytest.fixture
+def gamedb() -> Path:
+    """Mock supported game database file."""
+
+    file_path = '/gamedb.yaml'
+    file_contents = {
+        'minecraft': dict(id=432, version='DEFAULT'),
+    }
+
+    fs = fake_filesystem.FakeFilesystem(path_separator='/')
+    pathlib = fake_pathlib.FakePathlibModule(fs)
+
+    fs.CreateFile(file_path, contents=yaml.dump(file_contents), encoding='utf-8')
+    return pathlib.Path(file_path)
 
 
 # Feed tests
@@ -216,3 +235,34 @@ def test_gamedata_fresh(game):
         valid_period=datetime.timedelta(hours=24),
         now=data_timestamp+datetime.timedelta(hours=24),
     )
+
+
+def test_game_find(gamedb):
+    """Is the supported game found correctly?"""
+
+    game = curse.Game.find('minecraft', gamedb=gamedb)
+
+    assert game.id == 432
+    assert game.version == 'DEFAULT'
+
+    with pytest.raises(curse.UnsupportedGameError):
+        curse.Game.find('unsupported', gamedb=gamedb)
+
+
+def test_game_yaml(monkeypatch, minecraft, gamedb):
+    """Does the YAML serialization work as expected?"""
+
+    EXPECT_YAML = '''
+    !game
+    name: Minecraft
+    version: SELECTED
+    '''
+
+    monkeypatch.setattr(curse.Game, 'find', partial(curse.Game.find, gamedb=gamedb))
+
+    roundtrip = yaml.load(yaml.dump(minecraft))
+    manual = yaml.load(EXPECT_YAML)
+
+    assert roundtrip == minecraft
+    assert manual.id == minecraft.id
+    assert manual.version == 'SELECTED'

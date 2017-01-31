@@ -10,7 +10,7 @@ RESOURCE_NAME = __package__
 PKGDIR = Path(__file__).resolve().parent
 
 #: Package data directory
-PKGDATA = PKGDIR / '_data'
+PKGDATA = PKGDIR / '_data_'
 
 #: Root of the locale files
 localedir = PKGDATA / 'locales'
