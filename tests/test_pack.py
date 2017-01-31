@@ -1,17 +1,20 @@
 """Tests for the pack submodule"""
 
 from copy import deepcopy
+from datetime import datetime, timezone
 from io import StringIO
 from itertools import repeat
 from pprint import pprint
+from typing import Sequence, Tuple
 
 import cerberus
 import pytest
 from iso8601 import parse_date
 
 from mccurse import pack
-from mccurse.addon import Release
+from mccurse.addon import Release, File, Mod
 from mccurse.curse import Game
+from mccurse.pack import resolve
 from mccurse.util import yaml
 
 
@@ -110,6 +113,58 @@ def invalid_yaml(invalid_pack) -> StringIO:
     return stream
 
 
+# Dependency fixtures and helpers
+
+def makefile(name, mod_id, *deps):
+    """Shortcut for creating instances of File."""
+
+    TIMESTAMP = datetime.now(tz=timezone.utc)
+    RELEASE = Release.Release
+
+    return File(
+        mod=Mod(name=name.upper(), id=mod_id, summary=name),
+        id=(42 + mod_id),
+        name='{}.jar'.format(name),
+        date=TIMESTAMP,
+        release=RELEASE,
+        url='http://example.com/{}.jar'.format(name),
+        dependencies=list(deps),
+    )
+
+
+@pytest.fixture
+def multiple_dependency() -> Tuple[File, dict, Sequence]:
+    """Dependency graph with shared dependencies."""
+
+    root = makefile('a', 1, 2, 3)
+    deps = {
+        1: root,
+        2: makefile('b', 2, 3, 4),
+        3: makefile('c', 3),
+        4: makefile('d', 4, 3),
+        # Extra available, should not be included
+        5: makefile('e', 5, 3),
+    }
+    order = [1, 2, 3, 4]
+
+    return root, deps, order
+
+
+@pytest.fixture
+def circular_dependency() -> Tuple[File, dict, Sequence]:
+    """Dependency graph with a circle."""
+
+    root = makefile('a', 1, 2)
+    deps = {
+        1: root,
+        2: makefile('b', 2, 3),
+        3: makefile('c', 3, 1),
+    }
+    order = [1, 2, 3]
+
+    return root, deps, order
+
+
 def test_pack_schema(minimal_pack, valid_pack, invalid_pack):
     """Pack schema behaving as expected?"""
 
@@ -174,3 +229,39 @@ def test_modpack_dump(pack_validator, valid_pack):
     data = yaml.load(stream.getvalue())
 
     assert data == expect
+
+
+# Resolve tests
+
+def test_resolve_multiple(multiple_dependency):
+    """Resolving works right with shared dependencies?"""
+
+    root, pool, EXPECT_ORDER = multiple_dependency
+
+    resolution = resolve(root, pool)
+
+    assert len(resolution) == len(EXPECT_ORDER)
+    assert list(resolution.keys()) == EXPECT_ORDER
+
+    required = set(root.dependencies)
+    for d in resolution.values():
+        required.update(d.dependencies)
+
+    assert all(d in resolution for d in required)
+
+
+def test_resolve_cycle(circular_dependency):
+    """Resolving works right with circular dependencies?"""
+
+    root, pool, EXPECT_ORDER = circular_dependency
+
+    resolution = resolve(root, pool)
+
+    assert len(resolution) == len(EXPECT_ORDER)
+    assert list(resolution.keys()) == EXPECT_ORDER
+
+    required = set(root.dependencies)
+    for d in resolution.values():
+        required.update(d.dependencies)
+
+    assert all(d in resolution for d in required)

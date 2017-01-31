@@ -1,7 +1,8 @@
 """Mod-pack file format interface."""
 
+from collections import OrderedDict
 from copy import deepcopy
-from typing import TextIO
+from typing import Mapping, TextIO
 
 import cerberus
 
@@ -100,3 +101,17 @@ class ModPack:
         """
 
         yaml.dump(self.data, stream)
+
+
+def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:
+    """Fully resolve dependecies of a root :class:`addon.File`.
+
+    Keyword arguments:
+        root: The `addon.File` to resolve dependencies for.
+        pool: Available potential dependencies. Mapping from mod identification
+            to corresponding file.
+
+    Returns:
+        Ordered mapping of all the dependencies, in breadth-first order,
+        including the root.
+    """
