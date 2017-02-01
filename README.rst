@@ -1,3 +1,16 @@
+.. image:: https://img.shields.io/travis/khardix/mccurse.svg
+   :target: https://travis-ci.org/khardix/mccurse
+.. image:: https://img.shields.io/pypi/v/mccurse.svg
+   :target: https://pypi.python.org/pypi/mccurse
+.. image:: https://img.shields.io/pypi/pyversions/mccurse.svg
+   :target: https://pypi.python.org/pypi/mccurse
+.. image:: https://img.shields.io/pypi/l/mccurse.svg
+   :target: https://pypi.python.org/pypi/mccurse
+.. image:: https://img.shields.io/pypi/status/mccurse.svg
+   :target: https://pypi.python.org/pypi/mccurse
+.. image:: https://img.shields.io/badge/SayThanks.io-%E2%98%BC-1EAEDB.svg
+   :target: https://saythanks.io/to/khardix
+
 Minecraft Curse CLI Client
 ==========================
 
@@ -8,11 +21,6 @@ data source, it can find mods and their updates on Minecraft `CurseForge`_ and
 automatically install them for you.
 
 .. _CurseForge: https://minecraft.curseforge.com/
-
-Current test status: |travis|
-
-.. |travis| image:: https://travis-ci.org/khardix/mccurse.svg?branch=master
-                 :target: https://travis-ci.org/khardix/mccurse
 
 Usage
 -----
