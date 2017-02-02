@@ -2,3 +2,4 @@ betamax
 pyfakefs
 pytest
 responses
+tox
