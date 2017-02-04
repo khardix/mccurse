@@ -210,7 +210,10 @@ class File:
             'date': parse_date(data['file_date']),
             'release': Release[data['release_type']],
             'url': data['download_url'],
-            'dependencies': data['dependencies'],
+            'dependencies': [
+                d['add_on_id'] for d in data['dependencies']
+                if d['type'].lower() == 'required'
+            ],
         }
 
         return cls(**value_map)
