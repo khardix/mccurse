@@ -126,12 +126,12 @@ def circular_dependency() -> Tuple[File, dict, Sequence]:
 def test_pack_schema(minimal_pack, valid_pack, invalid_pack):
     """Pack schema behaving as expected?"""
 
-    schema = cerberus.schema_registry.get('pack-files')
+    schema = cerberus.schema_registry.get('pack')
     validators = map(cerberus.Validator, repeat(schema))
     operands = zip(
         ('minimal', 'valid', 'invalid'),
         validators,
-        (minimal_pack['files'], valid_pack['files'], invalid_pack['files']),
+        (minimal_pack, valid_pack, invalid_pack),
     )
     result = {
         name: {'status': vld.validate(pack), 'doc': vld.document, 'err': vld.errors}

@@ -14,21 +14,19 @@ from .curse import Game
 from .util import yaml, cerberus as crb
 
 
-# Mod list schema
-modlist_schema = {
+# Pack structure for validation
+modlist = {
     'type': 'list',
+    'schema': {'validator': crb.instance_of(File)},
     'default_setter': lambda doc: list(),
-    'schema': {
-        'validator': crb.instance_of(File),
-        'coerce': crb.fromyaml(File),
-    }
 }
-
-# Pack files schema
-cerberus.schema_registry.add('pack-files', {
-    'path': {'validator': crb.instance_of(Path), 'coerce': Path, 'required': True},
-    'mods': modlist_schema,
-    'dependencies': modlist_schema,
+cerberus.schema_registry.add('pack', {
+    'game': {'validator': crb.instance_of(Game), 'required': True},
+    'files': {'type': 'dict', 'required': True, 'schema': {
+        'path': {'type': 'string', 'required': True},
+        'mods': modlist,
+        'dependencies': modlist,
+    }},
 })
 
 
