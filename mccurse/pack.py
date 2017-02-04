@@ -80,6 +80,28 @@ class ModPack:
 
         return cls(game=game, files={'path': path})
 
+    @classmethod
+    def load(cls: Type['ModPack'], stream: TextIO) -> 'ModPack':
+        """Load mod-pack data from a file stream.
+
+        Keyword arguments:
+            stream: The text stream to load the data from.
+
+        Returns:
+            Loaded mod-pack.
+        """
+
+        return cls(**yaml.load(stream))
+
+    def dump(self: 'ModPack', stream: TextIO) -> None:
+        """Serialize self to a file stream.
+
+        Keyword arguments:
+            stream: The text stream to serialize into.
+        """
+
+        yaml.dump(attr.asdict(self, recurse=False), stream)
+
 
 def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:
     """Fully resolve dependecies of a root :class:`addon.File`.

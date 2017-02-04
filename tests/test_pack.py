@@ -102,6 +102,29 @@ def invalid_pack(invalid_mod) -> dict:
     }
 
 
+@pytest.fixture
+def minimal_yaml(minecraft) -> StringIO:
+    text = """\
+        game: !game
+            name: {minecraft.name}
+        files:
+            path: mods
+    """.format_map(locals())
+
+    return StringIO(text)
+
+
+@pytest.fixture
+def valid_yaml(minecraft, valid_pack) -> StringIO:
+    struct = deepcopy(valid_pack)
+    struct['game'] = minecraft
+    struct['files']['mods'] = list(map(
+        File.from_yaml, valid_pack['files']['mods']
+    ))
+
+    return StringIO(yaml.dump(struct))
+
+
 # Dependency fixtures and helpers
 
 def makefile(name, mod_id, *deps):
@@ -197,6 +220,34 @@ def test_modpack_new(minecraft):
 
     with pytest.raises(pack.ValidationError):
         pack.ModPack.new(minecraft, None)
+
+
+def test_modpack_load(minecraft, minimal_yaml, valid_yaml):
+    """Can the "hand-written" representation be loaded?"""
+
+    minimal = pack.ModPack.load(minimal_yaml)
+    valid = pack.ModPack.load(valid_yaml)
+
+    assert minimal.game == Game.find('minecraft')
+    assert len(minimal.files['mods']) == 0
+
+    assert valid.game == minecraft
+    assert len(valid.files['mods']) != 0
+
+
+def test_modpack_dump(valid_yaml):
+    """Can the pack be stored and then load again fully?"""
+
+    original = pack.ModPack.load(valid_yaml)
+    iostream = StringIO()
+
+    original.dump(iostream)
+    assert iostream.getvalue()
+
+    iostream.seek(0)
+    restored = pack.ModPack.load(iostream)
+
+    assert restored == original
 
 
 # Resolve tests
