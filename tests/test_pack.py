@@ -68,7 +68,7 @@ def invalid_mod(empty_mod, invalid_mod_file) -> dict:
 @pytest.fixture
 def minimal_pack() -> dict:
     return {
-        'game': {'version': '1.10.2'},
+        'game': {'name': 'Minecraft'},
         'files': {'path': 'mods'}
     }
 

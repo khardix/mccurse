@@ -14,15 +14,21 @@ from .curse import Game
 from .util import yaml, cerberus as crb
 
 
+# Mod list schema
+modlist_schema = {
+    'type': 'list',
+    'default_setter': lambda doc: list(),
+    'schema': {
+        'validator': crb.instance_of(File),
+        'coerce': crb.fromyaml(File),
+    }
+}
+
 # Pack files schema
 cerberus.schema_registry.add('pack-files', {
     'path': {'validator': crb.instance_of(Path), 'coerce': Path, 'required': True},
-    'mods': {'type': 'list', 'schema': {
-        'validator': crb.instance_of(File), 'coerce': crb.fromyaml(File),
-    }},
-    'dependencies': {'type': 'list', 'schema': {
-        'validator': crb.instance_of(File), 'coerce': crb.fromyaml(File),
-    }},
+    'mods': modlist_schema,
+    'dependencies': modlist_schema,
 })
 
 
@@ -56,6 +62,8 @@ class ModPack:
         if not validator.validate(self.files):
             msg = _('Mod-pack has invalid files structure')
             raise ValidationError(msg, validator.errors)
+        else:
+            self.files = validator.document
 
     @classmethod
     def new(cls: Type['ModPack'], game: Game, path: Path) -> 'ModPack':
@@ -70,7 +78,7 @@ class ModPack:
             Brand new empty mod-pack.
         """
 
-        return cls(game, {'path': path})
+        return cls(game=game, files={'path': path})
 
 
 def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:
