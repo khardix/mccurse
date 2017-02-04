@@ -4,13 +4,11 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from io import StringIO
 from itertools import repeat
-from pathlib import Path
 from pprint import pprint
 from typing import Sequence, Tuple
 
 import cerberus
 import pytest
-from iso8601 import parse_date
 
 from mccurse import pack
 from mccurse.addon import Release, File, Mod
@@ -25,78 +23,31 @@ def pack_validator() -> cerberus.Validator:
 
 
 @pytest.fixture
-def valid_mod_file() -> dict:
+def minimal_pack(minecraft) -> dict:
     return {
-        'id': 42,
-        'name': 'test-mod-file.jar',
-        'date': parse_date('2017-01-24T18:01+01:00'),
-        'release': Release['Beta'],
-        'url': 'https://example.com/test-mod-file.jar',
-    }
-
-
-@pytest.fixture
-def invalid_mod_file() -> dict:
-    return {
-        'name': 'testfile.zip',
-        'date': 'yesterday',
-        'release': 'Released',
-        'deps': [123, 456],
-    }
-
-
-@pytest.fixture
-def empty_mod() -> dict:
-    """Empty (without file) mod entry"""
-    return {
-        'id': 74072,
-        'name': 'Tinkers Contruct',
-        'summary': 'Modify all the tools, then do it again!',
-    }
-
-
-@pytest.fixture
-def valid_mod(empty_mod, valid_mod_file) -> dict:
-    return dict(**empty_mod, file=deepcopy(valid_mod_file))
-
-
-@pytest.fixture
-def invalid_mod(empty_mod, invalid_mod_file) -> dict:
-    return dict(**empty_mod, file=invalid_mod_file)
-
-
-@pytest.fixture
-def minimal_pack() -> dict:
-    return {
-        'game': {'name': 'Minecraft'},
+        'game': minecraft,
         'files': {'path': 'mods'}
     }
 
 
 @pytest.fixture
-def valid_pack(valid_mod) -> dict:
+def valid_pack(minecraft, tinkers_construct_file) -> dict:
     return {
-        'game': {
-            'name': 'Minecraft',
-            'version': '1.10.2',
-        },
+        'game': minecraft,
         'files': {
             'path': 'mods',
-            'mods': [deepcopy(valid_mod)],
+            'mods': [tinkers_construct_file],
             'dependencies': [],
         },
     }
 
 
 @pytest.fixture
-def invalid_pack(invalid_mod) -> dict:
+def invalid_pack(minecraft, tinkers_construct_file) -> dict:
     return {
-        'game': {
-            'name': 'Minecraft',
-            'version': '1.10.2',
-        },
+        'game': minecraft,
         'files': {
-            'mods': [deepcopy(invalid_mod)],
+            'mods': [tinkers_construct_file],
             'dependencies': [],
         }
     }
@@ -117,11 +68,6 @@ def minimal_yaml(minecraft) -> StringIO:
 @pytest.fixture
 def valid_yaml(minecraft, valid_pack) -> StringIO:
     struct = deepcopy(valid_pack)
-    struct['game'] = minecraft
-    struct['files']['mods'] = list(map(
-        File.from_yaml, valid_pack['files']['mods']
-    ))
-
     return StringIO(yaml.dump(struct))
 
 
@@ -199,29 +145,6 @@ def test_pack_schema(minimal_pack, valid_pack, invalid_pack):
     assert result['invalid']['status'] == False
 
 
-def test_modpack_init(minecraft, valid_pack, invalid_pack):
-    """ModPack.__init__ behaves as described?"""
-
-    mp = pack.ModPack(minecraft, valid_pack['files'])
-    assert all((mp.game, mp.files))
-
-    with pytest.raises(pack.ValidationError):
-        pack.ModPack(minecraft, invalid_pack['files'])
-
-
-def test_modpack_new(minecraft):
-    """Can a new ModPack be created and validated?"""
-
-    mod_path = Path('mods')
-
-    mp = pack.ModPack.new(minecraft, mod_path)
-    assert mp.game == minecraft
-    assert mp.files['path'] == mod_path
-
-    with pytest.raises(pack.ValidationError):
-        pack.ModPack.new(minecraft, None)
-
-
 def test_modpack_load(minecraft, minimal_yaml, valid_yaml):
     """Can the "hand-written" representation be loaded?"""
 
@@ -229,10 +152,10 @@ def test_modpack_load(minecraft, minimal_yaml, valid_yaml):
     valid = pack.ModPack.load(valid_yaml)
 
     assert minimal.game == Game.find('minecraft')
-    assert len(minimal.files['mods']) == 0
+    assert len(minimal.mods) == 0
 
     assert valid.game == minecraft
-    assert len(valid.files['mods']) != 0
+    assert len(valid.mods) != 0
 
 
 def test_modpack_dump(valid_yaml):

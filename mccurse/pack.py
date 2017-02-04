@@ -47,38 +47,15 @@ class ModPack:
     """Interface to single mod-pack data."""
 
     game = attr.ib(validator=vld.instance_of(Game))
-    files = attr.ib(validator=vld.instance_of(Mapping))
-
-    def __attrs_post_init__(self: 'ModPack'):
-        """Validate structure of files.
-
-        Raises:
-            ValidationError: On invalid files format.
-        """
-
-        schema = cerberus.schema_registry.get('pack-files')
-        validator = cerberus.Validator(schema)
-
-        if not validator.validate(self.files):
-            msg = _('Mod-pack has invalid files structure')
-            raise ValidationError(msg, validator.errors)
-        else:
-            self.files = validator.document
-
-    @classmethod
-    def new(cls: Type['ModPack'], game: Game, path: Path) -> 'ModPack':
-        """Create and initialize a new mod-pack.
-
-        Keyword arguments:
-            game: The game to create mod-pack for.
-            path: Path to the mods folder, should be relative to the pack's
-                location in file system.
-
-        Returns:
-            Brand new empty mod-pack.
-        """
-
-        return cls(game=game, files={'path': path})
+    path = attr.ib(validator=vld.instance_of(Path))
+    mods = attr.ib(
+        validator=vld.optional(vld.instance_of(OrderedDict)),
+        default=attr.Factory(OrderedDict),
+    )
+    dependencies = attr.ib(
+        validator=vld.optional(vld.instance_of(OrderedDict)),
+        default=attr.Factory(OrderedDict),
+    )
 
     @classmethod
     def load(cls: Type['ModPack'], stream: TextIO) -> 'ModPack':
