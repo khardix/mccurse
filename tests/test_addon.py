@@ -115,18 +115,16 @@ def test_file_init():
 
     m = addon.Mod(id=42, name=str(), summary=str())
 
-    a = addon.File(
+    addon.File(
         id=42, mod=m,
         name='test.jar', date=datetime.now(tz=timezone.utc),
         release=addon.Release.Release, url='https://httpbin.org',
     )
-    b = addon.File(
+    addon.File(
         id=43, mod=m,
         name='test.jar', date=datetime.now(tz=timezone.utc),
         release=addon.Release.Alpha, url='https://httpbin.org',
     )
-
-    assert all(f in addon.File.cache.values() for f in (a, b))
 
     with pytest.raises(TypeError):
         addon.File(

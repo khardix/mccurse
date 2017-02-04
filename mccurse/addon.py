@@ -6,7 +6,6 @@ from datetime import datetime
 from enum import Enum, unique
 from functools import total_ordering
 from typing import Any, Mapping, Sequence, Type
-from weakref import WeakValueDictionary
 
 import attr
 from attr import validators as vld
@@ -173,11 +172,6 @@ class Release(Enum):
 class File:
     """Metadata of a file belonging to some mod."""
 
-    #: Cache of existing instances
-    cache = WeakValueDictionary()
-    # Enable weak references
-    __weakref__ = attr.ib(init=False, hash=False, cmp=False, repr=False)
-
     #: File identification
     id = attr.ib(validator=vld.instance_of(int))
     #: Associated mod identification
@@ -195,11 +189,6 @@ class File:
         validator=vld.optional(vld.instance_of(list)),
         default=attr.Factory(list),
     )
-
-    def __attrs_post_init__(self):
-        """Register instance in the cache after successful initialization."""
-
-        self.__class__.cache[(self.mod.id, self.id)] = self
 
     @classmethod
     def from_proxy(cls: Type['File'], mod: Mod, data: Mapping) -> 'File':
@@ -262,7 +251,7 @@ class File:
 
         # Dump the file part
         yml['file'] = attr.asdict(instance)
-        for field in '__weakref__', 'mod':
+        for field in ('mod',):
             del yml['file'][field]
 
         return yml
