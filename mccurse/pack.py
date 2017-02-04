@@ -1,8 +1,9 @@
 """Mod-pack file format interface."""
 
 from collections import OrderedDict
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Mapping, TextIO, Type
+from typing import Mapping, TextIO, Type, Generator
 
 import attr
 import cerberus
@@ -107,6 +108,35 @@ class ModPack:
         data['files']['dependencies'] = list(self.dependencies.values())
 
         yaml.dump(data, stream)
+
+    @contextmanager
+    def replacing(self: 'ModPack', change: FileChange) -> Generator[File, None, None]:
+        """Prepare file system for receiving a new file, and cleans up afterwards.
+
+        Keyword arguments:
+            change: The file change about to be executed.
+
+        Yields:
+            The new file metadata.
+        """
+
+        nfile = change.file
+        ofile = change.old_store[nfile.mod.id]
+
+        # Temporary rename of the old file
+        enabled = self.path / ofile.name
+        disabled = enabled.with_suffix('.'.join((enabled.suffix, 'disabled')))
+
+        try:
+            enabled.rename(disabled)
+            yield nfile
+        except:  # Error, remove new file and rename the old back
+            self.path.joinpath(nfile.name).unlink()
+            disabled.rename(enabled)
+        else:  # No error, remove disabled file
+            change.new_store[nfile.mod.id] = nfile
+            del change.old_store[ofile.mod.id]
+            disabled.unlink()
 
 
 def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:

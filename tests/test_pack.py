@@ -1,9 +1,11 @@
 """Tests for the pack submodule"""
 
+from contextlib import suppress
 from copy import deepcopy
 from datetime import datetime, timezone
 from io import StringIO
 from itertools import repeat
+from pathlib import Path
 from pprint import pprint
 from typing import Sequence, Tuple
 
@@ -123,6 +125,21 @@ def circular_dependency() -> Tuple[File, dict, Sequence]:
     return root, deps, order
 
 
+@pytest.fixture
+def pack_directory(tmpdir, minimal_yaml, tinkers_construct_file) -> Tuple[pack.ModPack, Path]:
+    """Mod pack with existing files in file system."""
+
+    mp = pack.ModPack.load(minimal_yaml)
+    mp.path = Path(str(tmpdir))
+
+    filepath = mp.path / tinkers_construct_file.name
+    with filepath.open(mode='wt', encoding='utf-8') as file:
+        print('Tinkers Construct Dummy Old File', file=file)
+    mp.dependencies[tinkers_construct_file.mod.id] = tinkers_construct_file
+
+    return mp, mp.path
+
+
 def test_pack_schema(minimal_pack, valid_pack, invalid_pack):
     """Pack schema behaving as expected?"""
 
@@ -171,6 +188,75 @@ def test_modpack_dump(valid_yaml):
     restored = pack.ModPack.load(iostream)
 
     assert restored == original
+
+
+def test_modpack_replacing_sucessfull(pack_directory):
+    """Does the replacing works as expected?"""
+
+    mp, path = pack_directory
+    file, = mp.dependencies.values()
+    change = pack.FileChange(mp.dependencies, mp.mods, file)
+
+    file_path = path / file.name
+    temp_path = path / (file.name + '.disabled')
+    contents = file_path.read_text(encoding='utf-8')
+
+    assert file.mod.id in change.old_store
+    assert file.mod.id not in change.new_store
+    assert file_path.is_file()
+
+    with mp.replacing(change) as nfile:
+        assert nfile.mod.id in change.old_store
+        assert nfile.mod.id not in change.new_store
+
+        assert not file_path.exists()
+        assert temp_path.is_file()
+
+        with (mp.path/nfile.name).open(mode='wt', encoding='utf-8') as stream:
+            stream.write('New file\n')
+
+    assert file.mod.id not in change.old_store
+    assert file.mod.id in change.new_store
+    assert file_path.is_file()
+    assert file_path.read_text(encoding='utf-8') != contents
+    assert not temp_path.exists()
+
+
+def test_modpack_replacing_abort(pack_directory):
+    """Does the replacing works as expected?"""
+
+    class SimulatedException(Exception):
+        pass
+
+    mp, path = pack_directory
+    file, = mp.dependencies.values()
+    change = pack.FileChange(mp.dependencies, mp.mods, file)
+
+    file_path = path / file.name
+    temp_path = path / (file.name + '.disabled')
+    contents = file_path.read_text(encoding='utf-8')
+
+    assert file.mod.id in change.old_store
+    assert file.mod.id not in change.new_store
+    assert file_path.is_file()
+
+    with suppress(SimulatedException), mp.replacing(change) as nfile:
+        assert nfile.mod.id in change.old_store
+        assert nfile.mod.id not in change.new_store
+
+        assert not file_path.exists()
+        assert temp_path.is_file()
+
+        with (mp.path/nfile.name).open(mode='wt', encoding='utf-8') as stream:
+            stream.write('New file\n')
+
+        raise SimulatedException()
+
+    assert file.mod.id in change.old_store
+    assert file.mod.id not in change.new_store
+    assert file_path.is_file()
+    assert file_path.read_text(encoding='utf-8') == contents
+    assert not temp_path.exists()
 
 
 # Resolve tests
