@@ -66,7 +66,19 @@ class ModPack:
             Loaded mod-pack.
         """
 
-        return cls(**yaml.load(stream))
+        validator = cerberus.Validator(cerberus.schema_registry.get('pack'))
+
+        if not validator.validate(yaml.load(stream)):
+            msg = _('Modpack file contains invalid data', validator.errors)
+            raise ValidationError(msg)
+        else:
+            data = validator.document
+            return cls(
+                game=data['game'],
+                path=Path(data['files']['path']),
+                mods=OrderedDict((d.mod.id, d) for d in data['files']['mods']),
+                dependencies=OrderedDict((d.mod.id, d) for d in data['files']['dependencies']),
+            )
 
     def dump(self: 'ModPack', stream: TextIO) -> None:
         """Serialize self to a file stream.
@@ -75,7 +87,14 @@ class ModPack:
             stream: The text stream to serialize into.
         """
 
-        yaml.dump(attr.asdict(self, recurse=False), stream)
+        data = OrderedDict()
+        data['game'] = self.game
+        data['files'] = OrderedDict()
+        data['files']['path'] = str(self.path)
+        data['files']['mods'] = list(self.mods.values())
+        data['files']['dependencies'] = list(self.dependencies.values())
+
+        yaml.dump(data, stream)
 
 
 def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:
