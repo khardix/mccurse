@@ -9,7 +9,7 @@ import responses
 from sqlalchemy.orm.session import Session as SQLSession
 from requests import Session
 
-from mccurse import addon, curse, proxy
+from mccurse import addon, curse
 from mccurse.util import yaml
 
 
@@ -206,3 +206,8 @@ def test_file_fetch(tmpdir, tinkers_construct_file):
 
         assert filepath.is_file()
         assert filepath.stat().st_mtime == file.date.timestamp()
+
+    with responses.RequestsMock() as rsps:
+        filepath = file.fetch(target, session=session)
+
+        assert len(rsps.calls) == 0

@@ -283,6 +283,9 @@ class File:
             raise NotADirectoryError(str(path))
 
         target = path / self.name
+        if target.exists() and target.stat().st_mtime == self.date.timestamp():
+            return target
+
         remote = session.get(self.url)
         remote.raise_for_status()
 
