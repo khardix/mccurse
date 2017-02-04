@@ -6,6 +6,7 @@ from datetime import datetime
 from enum import Enum
 from functools import partial, partialmethod
 from operator import attrgetter
+from pathlib import Path, PosixPath, WindowsPath
 from typing import Any
 
 import yaml
@@ -18,6 +19,7 @@ except ImportError:
     from yaml import Loader, Dumper
 
 TIMESTAMP_TAG = 'tag:yaml.org,2002:timestamp'
+STR_TAG = 'tag:yaml.org,2002:str'
 
 
 # Force deep loading of dictionaries
@@ -36,6 +38,15 @@ def timestamp_constructor(loader: Loader, node: yaml.Node) -> datetime:
     value = loader.construct_scalar(node)
     return parse_date(value)
 Loader.add_constructor(TIMESTAMP_TAG, timestamp_constructor)
+
+
+# Automatically serialize Path as string
+def path_representer(dumper: Dumper, path: Path) -> yaml.Node:
+    """Custom representer for Path objects in YAML."""
+    return dumper.represent_scalar(STR_TAG, str(path))
+Dumper.add_representer(Path, path_representer)
+Dumper.add_representer(PosixPath, path_representer)
+Dumper.add_representer(WindowsPath, path_representer)
 
 
 # Decorator for nicer custom tags

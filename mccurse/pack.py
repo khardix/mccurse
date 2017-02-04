@@ -1,31 +1,34 @@
 """Mod-pack file format interface."""
 
 from collections import OrderedDict
-from copy import deepcopy
-from typing import Mapping, TextIO
+from pathlib import Path
+from typing import Mapping, TextIO, Type
 
+import attr
 import cerberus
+from attr import validators as vld
 
+from . import _
 from .addon import File
 from .curse import Game
 from .util import yaml, cerberus as crb
 
 
-# Game schema
-cerberus.schema_registry.add('game', {
-    'name': {'type': 'string'},
-    'version': {'type': 'string'},
-})
+# Mod list schema
+modlist_schema = {
+    'type': 'list',
+    'default_setter': lambda doc: list(),
+    'schema': {
+        'validator': crb.instance_of(File),
+        'coerce': crb.fromyaml(File),
+    }
+}
 
-# Pack file schema
-cerberus.schema_registry.add('pack', {
-    'game': {'type': 'dict', 'schema': 'game', 'required': True},
-    'mods': {'type': 'list', 'schema': {
-        'validator': crb.instance_of(File), 'coerce': crb.fromyaml(File),
-    }},
-    'dependencies': {'type': 'list', 'schema': {
-        'validator': crb.instance_of(File), 'coerce': crb.fromyaml(File),
-    }},
+# Pack files schema
+cerberus.schema_registry.add('pack-files', {
+    'path': {'validator': crb.instance_of(Path), 'coerce': Path, 'required': True},
+    'mods': modlist_schema,
+    'dependencies': modlist_schema,
 })
 
 
@@ -39,68 +42,65 @@ class ValidationError(ValueError):
         self.errors = errors
 
 
+@attr.s(slots=True)
 class ModPack:
     """Interface to single mod-pack data."""
 
-    __slots__ = 'data',
+    game = attr.ib(validator=vld.instance_of(Game))
+    files = attr.ib(validator=vld.instance_of(Mapping))
 
-    def __init__(self, data: dict):
-        """Validate data for the mod-pack.
+    def __attrs_post_init__(self: 'ModPack'):
+        """Validate structure of files.
 
         Raises:
-            ValidationError: If the data are not valid mod-pack data.
+            ValidationError: On invalid files format.
         """
 
-        vld = cerberus.Validator(cerberus.schema_registry.get('pack'))
-        # Do NOT change input data during validation!
-        if not vld.validate(deepcopy(data)):
-            raise ValidationError('Invalid pack data', vld.errors)
+        schema = cerberus.schema_registry.get('pack-files')
+        validator = cerberus.Validator(schema)
 
-        self.data = vld.document
+        if not validator.validate(self.files):
+            msg = _('Mod-pack has invalid files structure')
+            raise ValidationError(msg, validator.errors)
+        else:
+            self.files = validator.document
 
     @classmethod
-    def create(cls, game: Game) -> 'ModPack':
-        """Create new, empty mod-pack.
+    def new(cls: Type['ModPack'], game: Game, path: Path) -> 'ModPack':
+        """Create and initialize a new mod-pack.
 
         Keyword arguments:
-            name: Name of the game to make pack for.
-            version: Version of the game to make pack for.
+            game: The game to create mod-pack for.
+            path: Path to the mods folder, should be relative to the pack's
+                location in file system.
 
         Returns:
-            Newly created mod-pack.
+            Brand new empty mod-pack.
         """
 
-        return cls({
-            'game': {
-                'name': game.name,
-                'version': game.version,
-            },
-        })
+        return cls(game=game, files={'path': path})
 
     @classmethod
-    def from_yaml(cls, stream: TextIO) -> 'ModPack':
+    def load(cls: Type['ModPack'], stream: TextIO) -> 'ModPack':
         """Load mod-pack data from a file stream.
 
         Keyword arguments:
-            stream: Input YAML stream.
+            stream: The text stream to load the data from.
 
         Returns:
-            Mod-pack loaded form the stream.
-
-        Raises:
-            ValidationError: If the stream does not contain valid pack data.
+            Loaded mod-pack.
         """
 
-        return cls(yaml.load(stream))
+        return cls(**yaml.load(stream))
 
-    def to_yaml(self, stream: TextIO) -> None:
-        """Serialize and save the mod-pack data to YAML stream.
+    def dump(self: 'ModPack', stream: TextIO) -> None:
+        """Serialize self to a file stream.
 
         Keyword arguments:
-            stream: The YAML stream to write to.
+            stream: The text stream to serialize into.
         """
 
-        yaml.dump(self.data, stream)
+        yaml.dump(attr.asdict(self, recurse=False), stream)
 
 
 def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:

@@ -1,6 +1,7 @@
 """Tests for util submodule."""
 
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,7 @@ import requests
 import xdg
 
 from mccurse import util
+from mccurse.util import yaml
 
 
 def test_expected_resource_name():
@@ -91,3 +93,20 @@ def test_lazydict_exceptions(key, exception):
 
     with pytest.raises(exception):
         x = d[key]  # noqa
+
+
+def test_yaml_datetime():
+    """Custom datetime serialization works as expected?"""
+
+    now = datetime.now(tz=timezone.utc)
+
+    assert now.isoformat() in yaml.dump(now)
+    assert yaml.load(now.isoformat()) == now
+
+
+def test_yaml_path():
+    """Custom path serialization working as expected?"""
+
+    path = Path('some/long/path')
+
+    assert str(path) in yaml.dump(path)
