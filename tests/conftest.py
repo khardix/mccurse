@@ -8,6 +8,7 @@ import betamax
 import pytest
 
 from mccurse import addon, curse
+from mccurse.util import yaml
 
 
 # Ensure cassete dir
@@ -43,6 +44,27 @@ def tinkers_construct() -> addon.Mod:
         'summary': 'Modify all the things, then do it again!',
     }
     return addon.Mod(**data)
+
+
+@pytest.fixture
+def tinkers_construct_file() -> addon.File:
+    """Tinkers construct file."""
+
+    yml = """\
+    !modfile
+    file:
+        date: 2016-12-07T18:35:45+00:00
+        dependencies: [74924]
+        id: 2353329
+        name: TConstruct-1.10.2-2.6.1.jar
+        release: Release
+        url: https://addons.cursecdn.com/files/2353/329/TConstruct-1.10.2-2.6.1.jar
+    id: 74072
+    name: Tinkers Construct
+    summary: Modify all the things, then do it again!
+    """
+
+    return yaml.load(yml)
 
 
 @pytest.fixture
