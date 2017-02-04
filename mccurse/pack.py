@@ -1,7 +1,8 @@
 """Mod-pack file format interface."""
 
 from collections import OrderedDict
-from typing import Mapping, TextIO
+from pathlib import Path
+from typing import Mapping, TextIO, Type
 
 import attr
 import cerberus
@@ -15,7 +16,7 @@ from .util import yaml, cerberus as crb
 
 # Pack files schema
 cerberus.schema_registry.add('pack-files', {
-    'path': {'type': 'string', 'required': True},
+    'path': {'validator': crb.instance_of(Path), 'coerce': Path, 'required': True},
     'mods': {'type': 'list', 'schema': {
         'validator': crb.instance_of(File), 'coerce': crb.fromyaml(File),
     }},
@@ -42,7 +43,7 @@ class ModPack:
     game = attr.ib(validator=vld.instance_of(Game))
     files = attr.ib(validator=vld.instance_of(Mapping))
 
-    def __attrs_post_init__(self):
+    def __attrs_post_init__(self: 'ModPack'):
         """Validate structure of files.
 
         Raises:
@@ -55,6 +56,21 @@ class ModPack:
         if not validator.validate(self.files):
             msg = _('Mod-pack has invalid files structure')
             raise ValidationError(msg, validator.errors)
+
+    @classmethod
+    def new(cls: Type['ModPack'], game: Game, path: Path) -> 'ModPack':
+        """Create and initialize a new mod-pack.
+
+        Keyword arguments:
+            game: The game to create mod-pack for.
+            path: Path to the mods folder, should be relative to the pack's
+                location in file system.
+
+        Returns:
+            Brand new empty mod-pack.
+        """
+
+        return cls(game, {'path': path})
 
 
 def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:

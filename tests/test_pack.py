@@ -4,6 +4,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from io import StringIO
 from itertools import repeat
+from pathlib import Path
 from pprint import pprint
 from typing import Sequence, Tuple
 
@@ -183,6 +184,19 @@ def test_modpack_init(minecraft, valid_pack, invalid_pack):
 
     with pytest.raises(pack.ValidationError):
         pack.ModPack(minecraft, invalid_pack['files'])
+
+
+def test_modpack_new(minecraft):
+    """Can a new ModPack be created and validated?"""
+
+    mod_path = Path('mods')
+
+    mp = pack.ModPack.new(minecraft, mod_path)
+    assert mp.game == minecraft
+    assert mp.files['path'] == mod_path
+
+    with pytest.raises(pack.ValidationError):
+        pack.ModPack.new(minecraft, None)
 
 
 # Resolve tests
