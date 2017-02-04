@@ -41,6 +41,18 @@ class ValidationError(ValueError):
 
 
 @attr.s(slots=True)
+class FileChange:
+    """Description of a change inside a ModPack."""
+
+    #: Dictionary with old version of the file
+    old_store = attr.ib(validator=vld.instance_of(Mapping))
+    #: Dictionary which should receive the new version of the file
+    new_store = attr.ib(validator=vld.instance_of(Mapping))
+    #: New version of the file
+    file = attr.ib(validator=vld.instance_of(File))
+
+
+@attr.s(slots=True)
 class ModPack:
     """Interface to single mod-pack data."""
 
