@@ -68,6 +68,7 @@ def invalid_mod(empty_mod, invalid_mod_file) -> dict:
 def minimal_pack() -> dict:
     return {
         'game': {'version': '1.10.2'},
+        'files': {'path': 'mods'}
     }
 
 
@@ -78,8 +79,11 @@ def valid_pack(valid_mod) -> dict:
             'name': 'Minecraft',
             'version': '1.10.2',
         },
-        'mods': [deepcopy(valid_mod)],
-        'dependencies': [],
+        'files': {
+            'path': 'mods',
+            'mods': [deepcopy(valid_mod)],
+            'dependencies': [],
+        },
     }
 
 
@@ -90,27 +94,11 @@ def invalid_pack(invalid_mod) -> dict:
             'name': 'Minecraft',
             'version': '1.10.2',
         },
-        'mods': [deepcopy(invalid_mod)],
-        'dependencies': [],
+        'files': {
+            'mods': [deepcopy(invalid_mod)],
+            'dependencies': [],
+        }
     }
-
-
-@pytest.fixture
-def valid_yaml(valid_pack) -> StringIO:
-    stream = StringIO()
-    yaml.dump(valid_pack, stream)
-    stream.seek(0)
-
-    return stream
-
-
-@pytest.fixture
-def invalid_yaml(invalid_pack) -> StringIO:
-    stream = StringIO()
-    yaml.dump(invalid_pack, stream)
-    stream.seek(0)
-
-    return stream
 
 
 # Dependency fixtures and helpers
@@ -168,12 +156,12 @@ def circular_dependency() -> Tuple[File, dict, Sequence]:
 def test_pack_schema(minimal_pack, valid_pack, invalid_pack):
     """Pack schema behaving as expected?"""
 
-    schema = cerberus.schema_registry.get('pack')
+    schema = cerberus.schema_registry.get('pack-files')
     validators = map(cerberus.Validator, repeat(schema))
     operands = zip(
         ('minimal', 'valid', 'invalid'),
         validators,
-        (minimal_pack, valid_pack, invalid_pack),
+        (minimal_pack['files'], valid_pack['files'], invalid_pack['files']),
     )
     result = {
         name: {'status': vld.validate(pack), 'doc': vld.document, 'err': vld.errors}
@@ -187,48 +175,14 @@ def test_pack_schema(minimal_pack, valid_pack, invalid_pack):
     assert result['invalid']['status'] == False
 
 
-def test_modpack_init(valid_pack, invalid_pack):
+def test_modpack_init(minecraft, valid_pack, invalid_pack):
     """ModPack.__init__ behaves as described?"""
 
-    mp = pack.ModPack(valid_pack)
-    assert mp.data
+    mp = pack.ModPack(minecraft, valid_pack['files'])
+    assert all((mp.game, mp.files))
 
     with pytest.raises(pack.ValidationError):
-        mp = pack.ModPack(invalid_pack)
-
-
-def test_modpack_create():
-    """Does ModPack.create work as expected?"""
-
-    gm = Game(id=42, name='Test', version='dev')
-    mp = pack.ModPack.create(gm)
-
-    assert mp.data['game']['name'] == gm.name
-    assert mp.data['game']['version'] == gm.version
-
-
-def test_modpack_load(pack_validator, valid_yaml, valid_pack, invalid_yaml):
-    """Loading from stream works as advertised?"""
-
-    mp = pack.ModPack.from_yaml(valid_yaml)
-    assert mp.data == pack_validator.normalized(valid_pack)
-
-    with pytest.raises(pack.ValidationError):
-        mp = pack.ModPack.from_yaml(invalid_yaml)
-
-
-def test_modpack_dump(pack_validator, valid_pack):
-    """Dumping to stream works as advertised?"""
-
-    stream = StringIO()
-    mp = pack.ModPack(valid_pack)
-    expect = pack_validator.normalized(deepcopy(valid_pack))
-
-    mp.to_yaml(stream)
-    print(stream.getvalue())
-    data = yaml.load(stream.getvalue())
-
-    assert data == expect
+        pack.ModPack(minecraft, invalid_pack['files'])
 
 
 # Resolve tests
