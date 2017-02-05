@@ -126,10 +126,28 @@ def circular_dependency() -> Tuple[File, dict, Sequence]:
 
 
 @pytest.fixture
-def pack_directory(tmpdir, minimal_yaml, tinkers_construct_file) -> Tuple[pack.ModPack, Path]:
+def minimal_modpack(minimal_yaml) -> pack.ModPack:
+    """Minimal mod pack."""
+
+    return pack.ModPack.load(minimal_yaml)
+
+
+@pytest.fixture
+def filled_modpack(minimal_modpack, tinkers_construct_file, mantle_file) -> pack.ModPack:
+    """Mod-pack with some installed mods."""
+
+    mp = minimal_modpack
+    mp.mods[tinkers_construct_file.mod.id] = tinkers_construct_file
+    mp.dependencies[mantle_file.mod.id] = mantle_file
+
+    return mp
+
+
+@pytest.fixture
+def pack_directory(tmpdir, minimal_modpack, tinkers_construct_file) -> Tuple[pack.ModPack, Path]:
     """Mod pack with existing files in file system."""
 
-    mp = pack.ModPack.load(minimal_yaml)
+    mp = minimal_modpack
     mp.path = Path(str(tmpdir))
 
     filepath = mp.path / tinkers_construct_file.name

@@ -68,6 +68,27 @@ def tinkers_construct_file() -> addon.File:
 
 
 @pytest.fixture
+def mantle_file() -> addon.File:
+    """Mantle (Tinkers dependency) file."""
+
+    yml = """\
+    !modfile
+    file:
+        date: 2017-01-09T19:40:41+00:00
+        dependencies: []
+        id: 2366244
+        name: Mantle-1.10.2-1.1.4.jar
+        release: Release
+        url: https://addons.cursecdn.com/files/2366/244/Mantle-1.10.2-1.1.4.jar
+    id: 74924
+    name: Mantle
+    summary: ''
+    """
+
+    return yaml.load(yml)
+
+
+@pytest.fixture
 def minecraft() -> curse.Game:
     """Minecraft version for testing."""
 
