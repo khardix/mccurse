@@ -1,13 +1,14 @@
 """Package command line interface."""
 
 import curses
+import logging
 from collections import ChainMap
 from pathlib import Path
 from typing import Mapping
 
 import click
 
-from . import _, PKGDATA
+from . import _, PKGDATA, log
 from .curse import Game, Mod
 from .pack import ModPack
 from .proxy import Authorization
@@ -68,8 +69,11 @@ def check_minecraft_dir(root: Path) -> None:
     type=click.STRING, default=None,
     help=_('Specify the game version to mod.'),
 )
+@click.option(
+    '--quiet', '-q', is_flag=True, default=False,
+)
 @click.pass_context
-def cli(ctx, game, gamever):
+def cli(ctx, game, gamever, quiet):
     """Minecraft Curse CLI client."""
 
     # Resolve game parameters
@@ -81,6 +85,11 @@ def cli(ctx, game, gamever):
 
     # Initialize terminal for querying
     curses.setupterm()
+
+    if not quiet:
+        log.setLevel(logging.INFO)
+    else:
+        log.setLevel(logging.ERROR)
 
     # Add contextual values
     ctx.obj = {
@@ -113,7 +122,7 @@ def search(ctx, refresh, text):
     refresh = refresh or not game.have_fresh_data()
 
     if refresh:
-        click.echo(_('Refreshing search data, please wait…'), err=True)
+        log.info(_('Refreshing search data, please wait…'))
         game.refresh_data()
 
     found = Mod.search(game.database.session(), text)
