@@ -8,7 +8,9 @@ import requests
 from attr import validators as vld
 from requests.auth import AuthBase
 
+from . import _
 from .addon import File, Mod, Release
+from .exceptions import InvalidStream
 from .curse import Game
 from .util import default_new_session, yaml
 
@@ -82,14 +84,14 @@ class Authorization(AuthBase):
             Authorization previously saved to the file.
 
         Raises:
-            ValueError: When the stream does not contain expected data.
+            InvalidStream: When the stream does not contain expected data.
         """
 
         data = yaml.load(file)
 
         if not data or 'user_id' not in data or 'token' not in data:
-            msg = 'Invalid authorization data: {!r}'.format(data)
-            raise ValueError(msg)
+            msg = _('Invalid authentication data')
+            raise InvalidStream(msg, data)
 
         return cls(**data)
 
