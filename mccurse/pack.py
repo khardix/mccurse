@@ -1,8 +1,9 @@
 """Mod-pack file format interface."""
 
-from collections import OrderedDict
+from collections import OrderedDict, ChainMap
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Mapping, TextIO, Type
+from typing import Mapping, TextIO, Type, Generator, Iterable
 
 import attr
 import cerberus
@@ -38,6 +39,18 @@ class ValidationError(ValueError):
     def __init__(self, msg: str, errors: dict):
         super().__init__(msg)
         self.errors = errors
+
+
+@attr.s(slots=True)
+class FileChange:
+    """Description of a change inside a ModPack."""
+
+    #: Dictionary with old version of the file
+    old_store = attr.ib(validator=vld.instance_of(Mapping))
+    #: Dictionary which should receive the new version of the file
+    new_store = attr.ib(validator=vld.instance_of(Mapping))
+    #: New version of the file
+    file = attr.ib(validator=vld.instance_of(File))
 
 
 @attr.s(slots=True)
@@ -95,6 +108,82 @@ class ModPack:
         data['files']['dependencies'] = list(self.dependencies.values())
 
         yaml.dump(data, stream)
+
+    @contextmanager
+    def replacing(self: 'ModPack', change: FileChange) -> Generator[File, None, None]:
+        """Prepare file system for receiving a new file, and cleans up afterwards.
+
+        Keyword arguments:
+            change: The file change about to be executed.
+
+        Yields:
+            The new file metadata.
+        """
+
+        nfile = change.file
+        ofile = change.old_store[nfile.mod.id]
+
+        # Temporary rename of the old file
+        enabled = self.path / ofile.name
+        disabled = enabled.with_suffix('.'.join((enabled.suffix, 'disabled')))
+
+        try:
+            enabled.rename(disabled)
+            yield nfile
+        except:  # Error, remove new file and rename the old back
+            self.path.joinpath(nfile.name).unlink()
+            disabled.rename(enabled)
+        else:  # No error, remove disabled file
+            change.new_store[nfile.mod.id] = nfile
+            del change.old_store[ofile.mod.id]
+            disabled.unlink()
+
+    def filter_obsoletes(
+        self: 'ModPack',
+        files: Iterable[File]
+    ) -> Generator[File, None, None]:
+        """Filter obsolete files.
+
+        Obsolete files are defined as being already installed, or being
+        an older version of already installed files.
+
+        Keyword arguments:
+            files: Iterable of mod :class:`File`s to filter.
+
+        Yields:
+            Original files without the obsoletes.
+        """
+
+        installed = ChainMap(self.mods, self.dependencies)
+
+        for file in files:
+            if file.mod.id not in installed:
+                yield file
+
+            current = installed[file.mod.id]
+            if file.date > current.date:
+                yield file
+            else:
+                continue
+
+    def orphans(self: 'ModPack') -> Iterable[File]:
+        """Finds all no longer needed dependencies.
+
+        Yields:
+            Orphaned files.
+        """
+
+        # Construct full dependency chain
+        available = ChainMap(self.mods, self.dependencies)
+        needed = {}
+        for file in self.mods.values():
+            needed.update(resolve(file, pool=available))
+
+        # Filter unneeded dependencies
+        yield from (
+            file for m_id, file in self.dependencies.items()
+            if m_id not in needed
+        )
 
 
 def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:

@@ -1,10 +1,13 @@
 """Tests for addon submodule."""
 
 from datetime import datetime, timezone
+from pathlib import Path
 
+import betamax
 import pytest
 import responses
 from sqlalchemy.orm.session import Session as SQLSession
+from requests import Session
 
 from mccurse import addon, curse
 from mccurse.util import yaml
@@ -184,3 +187,27 @@ def test_file_yaml(date: datetime):
 
     assert yaml.load(yaml.dump(EXPECT_FILE)) == EXPECT_FILE
     assert yaml.load(EXPECT_YAML) == EXPECT_FILE
+
+
+def test_file_fetch(tmpdir, tinkers_construct_file):
+    """Does the File.fetch fetches the file correctly?"""
+
+    target = Path(str(tmpdir)) / 'files'
+    session = Session()
+    file = tinkers_construct_file
+
+    with betamax.Betamax(session).use_cassette('file-fetch'):
+        with pytest.raises(OSError):
+            file.fetch(target, session=session)
+
+        target.mkdir()
+
+        filepath = file.fetch(target, session=session)
+
+        assert filepath.is_file()
+        assert filepath.stat().st_mtime == file.date.timestamp()
+
+    with responses.RequestsMock() as rsps:
+        filepath = file.fetch(target, session=session)
+
+        assert len(rsps.calls) == 0
