@@ -1,9 +1,9 @@
 """Mod-pack file format interface."""
 
-from collections import OrderedDict
+from collections import OrderedDict, ChainMap
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Mapping, TextIO, Type, Generator
+from typing import Mapping, TextIO, Type, Generator, Iterable
 
 import attr
 import cerberus
@@ -137,6 +137,34 @@ class ModPack:
             change.new_store[nfile.mod.id] = nfile
             del change.old_store[ofile.mod.id]
             disabled.unlink()
+
+    def filter_obsoletes(
+        self: 'ModPack',
+        files: Iterable[File]
+    ) -> Generator[File, None, None]:
+        """Filter obsolete files.
+
+        Obsolete files are defined as being already installed, or being
+        an older version of already installed files.
+
+        Keyword arguments:
+            files: Iterable of mod :class:`File`s to filter.
+
+        Yields:
+            Original files without the obsoletes.
+        """
+
+        installed = ChainMap(self.mods, self.dependencies)
+
+        for file in files:
+            if file.mod.id not in installed:
+                yield file
+
+            current = installed[file.mod.id]
+            if file.date > current.date:
+                yield file
+            else:
+                continue
 
 
 def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:

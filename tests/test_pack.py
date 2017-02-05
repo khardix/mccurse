@@ -2,7 +2,7 @@
 
 from contextlib import suppress
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from io import StringIO
 from itertools import repeat
 from pathlib import Path
@@ -275,6 +275,24 @@ def test_modpack_replacing_abort(pack_directory):
     assert file_path.is_file()
     assert file_path.read_text(encoding='utf-8') == contents
     assert not temp_path.exists()
+
+
+def test_filter_obsoletes(filled_modpack, tinkers_construct_file, mantle_file):
+    """Does the obsoletes filtering work as expected?"""
+
+    older = deepcopy(tinkers_construct_file)
+    older.date = older.date - timedelta(days=1)
+
+    current = deepcopy(mantle_file)
+
+    newer = deepcopy(mantle_file)
+    newer.date = newer.date + timedelta(minutes=1)
+
+    results = list(filled_modpack.filter_obsoletes((older, current, newer)))
+
+    assert older not in results
+    assert current not in results
+    assert newer in results
 
 
 # Resolve tests
