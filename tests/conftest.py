@@ -56,8 +56,8 @@ def tinkers_construct_file(tinkers_construct) -> addon.File:
         name='TConstruct-1.10.2-2.6.1.jar',
         date=datetime(
             year=2016, month=12, day=7,
-            hours=18, minutes=35, seconds=45,
-            tz=timezone.utc,
+            hour=18, minute=35, second=45,
+            tzinfo=timezone.utc,
         ),
         release=proxy.Release.Release,
         url='https://addons.cursecdn.com/files/2353/329/TConstruct-1.10.2-2.6.1.jar',
@@ -75,8 +75,8 @@ def mantle_file() -> addon.File:
         name='Mantle-1.10.2-1.1.4.jar',
         date=datetime(
             year=2017, month=1, day=9,
-            hours=19, minutes=40, seconds=41,
-            tz=timezone.utc,
+            hour=19, minute=40, second=41,
+            tzinfo=timezone.utc,
         ),
         release=proxy.Release.Release,
         url='https://addons.cursecdn.com/files/2366/244/Mantle-1.10.2-1.1.4.jar',
