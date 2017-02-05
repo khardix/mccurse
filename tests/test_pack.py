@@ -1,12 +1,9 @@
 """Tests for the pack submodule"""
 
 from contextlib import suppress
-from copy import deepcopy
 from datetime import datetime, timezone, timedelta
 from io import StringIO
-from itertools import repeat
 from pathlib import Path
-from pprint import pprint
 from typing import Sequence, Tuple
 
 import cerberus
@@ -19,63 +16,102 @@ from mccurse.pack import resolve
 from mccurse.util import yaml
 
 
+# Fixtures
+
+# # Pack fixtures
+
 @pytest.fixture
-def pack_validator() -> cerberus.Validator:
+def minimal_pack(tmpdir) -> pack.ModPack:
+    """Minimal valid mod-pack."""
+
+    return pack.ModPack(game=Game.find('minecraft'), path=Path(str(tmpdir)))
+
+
+@pytest.fixture
+def valid_pack(minecraft, tmpdir, tinkers_construct_file, mantle_file) -> pack.ModPack:
+    """Mod-pack with installed files."""
+
+    mp = pack.ModPack(game=minecraft, path=Path(str(tmpdir)))
+    mp.mods[tinkers_construct_file.mod.id] = tinkers_construct_file
+    mp.dependencies[mantle_file.mod.id] = mantle_file
+
+    return mp
+
+
+@pytest.fixture
+def valid_pack_with_file_contents(valid_pack) -> pack.ModPack:
+    """Mod-pack with actual file contents on expected places."""
+
+    mfile = next(valid_pack.mods.values())
+    dfile = next(valid_pack.dependencies.values())
+
+    mpath, dpath = map(lambda f: valid_pack.path / f.name, (mfile, dfile))
+
+    with mpath.open(mode='wt', encoding='utf-8') as m:
+        m.write('MOD:FIXTURE')
+    with dpath.open(mode='wt', encoding='utf-8') as d:
+        d.write('DEP:FIXTURE')
+
+    return valid_pack
+
+
+# # YAML fixtures
+
+@pytest.fixture
+def yaml_validator() -> cerberus.Validator:
+    """Validator for mod-pack data loaded from YAML."""
+
     return cerberus.Validator(cerberus.schema_registry.get('pack'))
 
 
 @pytest.fixture
-def minimal_pack(minecraft) -> dict:
-    return {
-        'game': minecraft,
-        'files': {'path': 'mods'}
-    }
+def minimal_yaml(minimal_pack) -> StringIO:
+    """Minimal YAML structure for mod-pack."""
 
-
-@pytest.fixture
-def valid_pack(minecraft, tinkers_construct_file) -> dict:
-    return {
-        'game': minecraft,
-        'files': {
-            'path': 'mods',
-            'mods': [tinkers_construct_file],
-            'dependencies': [],
-        },
-    }
-
-
-@pytest.fixture
-def invalid_pack(minecraft, tinkers_construct_file) -> dict:
-    return {
-        'game': minecraft,
-        'files': {
-            'mods': [tinkers_construct_file],
-            'dependencies': [],
-        }
-    }
-
-
-@pytest.fixture
-def minimal_yaml(minecraft) -> StringIO:
     text = """\
         game: !game
-            name: {minecraft.name}
+            name: {minimal_pack.game.name}
         files:
-            path: mods
+            path: {minimal_pack.path!s}
     """.format_map(locals())
 
     return StringIO(text)
 
 
 @pytest.fixture
-def valid_yaml(minecraft, valid_pack) -> StringIO:
-    struct = deepcopy(valid_pack)
-    return StringIO(yaml.dump(struct))
+def valid_yaml(valid_pack) -> StringIO:
+    """Valid YAML mod-pack structure."""
+
+    structure = {
+        'game': valid_pack.game,
+        'files': {
+            'path': str(valid_pack.path),
+            'mods': list(valid_pack.mods.values()),
+            'dependencies': list(valid_pack.dependencies.values()),
+        },
+    }
+
+    return StringIO(yaml.dump(structure))
 
 
-# Dependency fixtures and helpers
+@pytest.fixture
+def invalid_yaml(valid_pack) -> StringIO:
+    """Invalid YAML mod-pack strucutre: missing path"""
 
-def makefile(name, mod_id, *deps):
+    structure = {
+        'game': valid_pack.game,
+        'files': {
+            'mods': list(valid_pack.mods.values()),
+            'dependencies': list(valid_pack.dependencies.values()),
+        },
+    }
+
+    return StringIO(yaml.dump(structure))
+
+
+# # Dependency fixtures and helpers
+
+def makefile(name: str, mod_id: int, *deps: Sequence[int]):
     """Shortcut for creating instances of File."""
 
     TIMESTAMP = datetime.now(tz=timezone.utc)
@@ -125,87 +161,64 @@ def circular_dependency() -> Tuple[File, dict, Sequence]:
     return root, deps, order
 
 
-@pytest.fixture
-def minimal_modpack(minimal_yaml) -> pack.ModPack:
-    """Minimal mod pack."""
+# Tests
 
-    return pack.ModPack.load(minimal_yaml)
+# # YAML validation, loading and dumping
 
+@pytest.mark.parametrize('yaml_stream,expected_status', [
+    (pytest.lazy_fixture('minimal_yaml'), True),
+    (pytest.lazy_fixture('valid_yaml'), True),
+    (pytest.lazy_fixture('invalid_yaml'), False),
+])
+def test_yaml_schema(yaml_validator, yaml_stream, expected_status):
+    """After loading from YAML, the validator correctly validates the structure."""
 
-@pytest.fixture
-def filled_modpack(minimal_modpack, tinkers_construct_file, mantle_file) -> pack.ModPack:
-    """Mod-pack with some installed mods."""
+    document = yaml.load(yaml_stream)
+    status = yaml_validator.validate(document)
 
-    mp = minimal_modpack
-    mp.mods[tinkers_construct_file.mod.id] = tinkers_construct_file
-    mp.dependencies[mantle_file.mod.id] = mantle_file
+    # Echo status for debugging
+    print('=== Document ===', yaml.dump(yaml_validator.document), sep='\n')
+    print('=== Errors ===', yaml.dump(yaml_validator.errors), sep='\n')
 
-    return mp
-
-
-@pytest.fixture
-def pack_directory(tmpdir, minimal_modpack, tinkers_construct_file) -> Tuple[pack.ModPack, Path]:
-    """Mod pack with existing files in file system."""
-
-    mp = minimal_modpack
-    mp.path = Path(str(tmpdir))
-
-    filepath = mp.path / tinkers_construct_file.name
-    with filepath.open(mode='wt', encoding='utf-8') as file:
-        print('Tinkers Construct Dummy Old File', file=file)
-    mp.dependencies[tinkers_construct_file.mod.id] = tinkers_construct_file
-
-    return mp, mp.path
+    assert status == expected_status
 
 
-def test_pack_schema(minimal_pack, valid_pack, invalid_pack):
-    """Pack schema behaving as expected?"""
-
-    schema = cerberus.schema_registry.get('pack')
-    validators = map(cerberus.Validator, repeat(schema))
-    operands = zip(
-        ('minimal', 'valid', 'invalid'),
-        validators,
-        (minimal_pack, valid_pack, invalid_pack),
-    )
-    result = {
-        name: {'status': vld.validate(pack), 'doc': vld.document, 'err': vld.errors}
-        for name, vld, pack in operands
-    }
-
-    pprint(result)
-
-    assert result['minimal']['status'] == True
-    assert result['valid']['status'] == True
-    assert result['invalid']['status'] == False
-
-
-def test_modpack_load(minecraft, minimal_yaml, valid_yaml):
+@pytest.mark.parametrize('yaml_stream,expected_pack', [
+    tuple(map(pytest.lazy_fixture, ('minimal_yaml', 'minimal_pack'))),
+    tuple(map(pytest.lazy_fixture, ('valid_yaml', 'valid_pack'))),
+])
+def test_modpack_load_success(yaml_stream, expected_pack):
     """Can the "hand-written" representation be loaded?"""
 
-    minimal = pack.ModPack.load(minimal_yaml)
-    valid = pack.ModPack.load(valid_yaml)
-
-    assert minimal.game == Game.find('minecraft')
-    assert len(minimal.mods) == 0
-
-    assert valid.game == minecraft
-    assert len(valid.mods) != 0
+    assert pack.ModPack.load(yaml_stream) == expected_pack
 
 
-def test_modpack_dump(valid_yaml):
+@pytest.mark.parametrize('yaml_stream', [
+    pytest.lazy_fixture('invalid_yaml'),
+])
+def test_modpack_load_failure(yaml_stream):
+    """The loading failure is properly reported."""
+
+    with pytest.raises(pack.ValidationError):
+        pack.ModPack.load(yaml_stream)
+
+
+@pytest.mark.parametrize('modpack', [
+    pytest.lazy_fixture('minimal_pack'),
+    pytest.lazy_fixture('valid_pack'),
+])
+def test_modpack_roundtrip(modpack):
     """Can the pack be stored and then load again fully?"""
 
-    original = pack.ModPack.load(valid_yaml)
     iostream = StringIO()
 
-    original.dump(iostream)
+    modpack.dump(iostream)
     assert iostream.getvalue()
 
     iostream.seek(0)
     restored = pack.ModPack.load(iostream)
 
-    assert restored == original
+    assert restored == modpack
 
 
 def test_modpack_replacing_sucessfull(pack_directory):
@@ -310,7 +323,7 @@ def test_orphans(filled_modpack, tinkers_construct_file, mantle_file):
     assert orphan in results
 
 
-# Resolve tests
+# # Dependency resolution tests
 
 def test_resolve_multiple(multiple_dependency):
     """Resolving works right with shared dependencies?"""
