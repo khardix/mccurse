@@ -7,7 +7,7 @@ import pytest
 import requests
 import responses
 
-from mccurse import addon, proxy
+from mccurse import addon, proxy, exceptions
 from mccurse.util import yaml
 
 
@@ -151,7 +151,7 @@ def test_auth_loading(dummy_auth):
 
     assert proxy.Authorization.load(correct) == dummy_auth
 
-    with pytest.raises(ValueError):
+    with pytest.raises(exceptions.InvalidStream):
         proxy.Authorization.load(empty)
 
 

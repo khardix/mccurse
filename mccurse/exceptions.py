@@ -10,7 +10,7 @@ from typing import Mapping, Optional
 import click
 
 from . import _
-from util import yaml
+from .util import yaml
 
 
 class UserReport(click.ClickException):
