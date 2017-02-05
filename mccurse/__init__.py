@@ -1,7 +1,10 @@
 """Minecraft Curse CLI Client"""
 
 import gettext
+import logging
 from pathlib import Path
+
+from colorlog import ColoredFormatter
 
 #: Consistent names definitions
 RESOURCE_NAME = __package__
@@ -23,3 +26,22 @@ translation = gettext.translation(
     fallback=True,
 )
 _ = translation.gettext
+
+#: Logging machinery for the app
+color_log_fmt = ColoredFormatter(
+    '%(log_color)s%(message)s',
+    style='%',
+    reset=True,
+    log_colors={
+        'DEBUG': 'purple',
+        'INFO': 'reset',
+        'WARNING': 'yellow',
+        'ERROR': 'red',
+        'CRITICAL': 'fg_red,bg_white',
+    },
+)
+color_console_handler = logging.StreamHandler()
+color_console_handler.setFormatter(color_log_fmt)
+
+log = logging.getLogger(RESOURCE_NAME)
+log.addHandler(color_console_handler)
