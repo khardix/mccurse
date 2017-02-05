@@ -295,6 +295,21 @@ def test_filter_obsoletes(filled_modpack, tinkers_construct_file, mantle_file):
     assert newer in results
 
 
+def test_orphans(filled_modpack, tinkers_construct_file, mantle_file):
+    """Orphans listing works as expected?"""
+
+    orphan = deepcopy(mantle_file)
+    orphan.mod.id = 123456
+
+    filled_modpack.dependencies[orphan.mod.id] = orphan
+
+    results = list(filled_modpack.orphans())
+
+    assert tinkers_construct_file not in results
+    assert mantle_file not in results
+    assert orphan in results
+
+
 # Resolve tests
 
 def test_resolve_multiple(multiple_dependency):

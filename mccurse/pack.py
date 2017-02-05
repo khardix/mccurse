@@ -166,6 +166,25 @@ class ModPack:
             else:
                 continue
 
+    def orphans(self: 'ModPack') -> Iterable[File]:
+        """Finds all no longer needed dependencies.
+
+        Yields:
+            Orphaned files.
+        """
+
+        # Construct full dependency chain
+        available = ChainMap(self.mods, self.dependencies)
+        needed = {}
+        for file in self.mods.values():
+            needed.update(resolve(file, pool=available))
+
+        # Filter unneeded dependencies
+        yield from (
+            file for m_id, file in self.dependencies.items()
+            if m_id not in needed
+        )
+
 
 def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:
     """Fully resolve dependecies of a root :class:`addon.File`.
