@@ -1,7 +1,6 @@
 """Tests for the pack submodule"""
 
-from contextlib import suppress
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from io import StringIO
 from pathlib import Path
 from typing import Sequence, Tuple
@@ -219,108 +218,6 @@ def test_modpack_roundtrip(modpack):
     restored = pack.ModPack.load(iostream)
 
     assert restored == modpack
-
-
-def test_modpack_replacing_sucessfull(pack_directory):
-    """Does the replacing works as expected?"""
-
-    mp, path = pack_directory
-    file, = mp.dependencies.values()
-    change = pack.FileChange(mp.dependencies, mp.mods, file)
-
-    file_path = path / file.name
-    temp_path = path / (file.name + '.disabled')
-    contents = file_path.read_text(encoding='utf-8')
-
-    assert file.mod.id in change.old_store
-    assert file.mod.id not in change.new_store
-    assert file_path.is_file()
-
-    with mp.replacing(change) as nfile:
-        assert nfile.mod.id in change.old_store
-        assert nfile.mod.id not in change.new_store
-
-        assert not file_path.exists()
-        assert temp_path.is_file()
-
-        with (mp.path/nfile.name).open(mode='wt', encoding='utf-8') as stream:
-            stream.write('New file\n')
-
-    assert file.mod.id not in change.old_store
-    assert file.mod.id in change.new_store
-    assert file_path.is_file()
-    assert file_path.read_text(encoding='utf-8') != contents
-    assert not temp_path.exists()
-
-
-def test_modpack_replacing_abort(pack_directory):
-    """Does the replacing works as expected?"""
-
-    class SimulatedException(Exception):
-        pass
-
-    mp, path = pack_directory
-    file, = mp.dependencies.values()
-    change = pack.FileChange(mp.dependencies, mp.mods, file)
-
-    file_path = path / file.name
-    temp_path = path / (file.name + '.disabled')
-    contents = file_path.read_text(encoding='utf-8')
-
-    assert file.mod.id in change.old_store
-    assert file.mod.id not in change.new_store
-    assert file_path.is_file()
-
-    with suppress(SimulatedException), mp.replacing(change) as nfile:
-        assert nfile.mod.id in change.old_store
-        assert nfile.mod.id not in change.new_store
-
-        assert not file_path.exists()
-        assert temp_path.is_file()
-
-        with (mp.path/nfile.name).open(mode='wt', encoding='utf-8') as stream:
-            stream.write('New file\n')
-
-        raise SimulatedException()
-
-    assert file.mod.id in change.old_store
-    assert file.mod.id not in change.new_store
-    assert file_path.is_file()
-    assert file_path.read_text(encoding='utf-8') == contents
-    assert not temp_path.exists()
-
-
-def test_filter_obsoletes(filled_modpack, tinkers_construct_file, mantle_file):
-    """Does the obsoletes filtering work as expected?"""
-
-    older = deepcopy(tinkers_construct_file)
-    older.date = older.date - timedelta(days=1)
-
-    current = deepcopy(mantle_file)
-
-    newer = deepcopy(mantle_file)
-    newer.date = newer.date + timedelta(minutes=1)
-
-    results = list(filled_modpack.filter_obsoletes((older, current, newer)))
-
-    assert older not in results
-    assert current not in results
-    assert newer in results
-
-
-def test_orphans(filled_modpack, tinkers_construct_file, mantle_file):
-    """Orphans listing works as expected?"""
-
-    orphan = deepcopy(mantle_file)
-    orphan.mod.id = 123456
-
-    filled_modpack.dependencies[orphan.mod.id] = orphan
-
-    results = list(filled_modpack.orphans())
-
-    assert tinkers_construct_file not in results
-    assert mantle_file not in results
-    assert orphan in results
 
 
 # # Dependency resolution tests
