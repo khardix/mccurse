@@ -1,5 +1,6 @@
 betamax
 pyfakefs
 pytest
+pytest-lazy-fixture
 responses
 tox

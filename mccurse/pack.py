@@ -82,8 +82,8 @@ class ModPack:
         validator = cerberus.Validator(cerberus.schema_registry.get('pack'))
 
         if not validator.validate(yaml.load(stream)):
-            msg = _('Modpack file contains invalid data', validator.errors)
-            raise ValidationError(msg)
+            msg = _('Modpack file contains invalid data'), validator.errors
+            raise ValidationError(*msg)
         else:
             data = validator.document
             return cls(
