@@ -13,6 +13,7 @@ from attr import validators as vld
 
 from . import _
 from .addon import File
+from .exceptions import InvalidStream
 from .curse import Game
 from .util import yaml, cerberus as crb, default_new_session
 
@@ -31,16 +32,6 @@ cerberus.schema_registry.add('pack', {
         'dependencies': modlist,
     }},
 })
-
-
-class ValidationError(ValueError):
-    """Exception for reporting invalid pack data."""
-
-    __slots__ = 'errors',
-
-    def __init__(self, msg: str, errors: dict):
-        super().__init__(msg)
-        self.errors = errors
 
 
 @attr.s(slots=True)
@@ -85,7 +76,7 @@ class ModPack:
 
         if not validator.validate(yaml.load(stream)):
             msg = _('Modpack file contains invalid data'), validator.errors
-            raise ValidationError(*msg)
+            raise InvalidStream(*msg)
         else:
             data = validator.document
             return cls(

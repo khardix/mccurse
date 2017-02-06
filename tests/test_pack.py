@@ -11,7 +11,7 @@ import pytest
 import requests
 import responses
 
-from mccurse import pack
+from mccurse import pack, exceptions
 from mccurse.addon import Release, File, Mod
 from mccurse.curse import Game
 from mccurse.pack import resolve
@@ -201,7 +201,7 @@ def test_modpack_load_success(yaml_stream, expected_pack):
 def test_modpack_load_failure(yaml_stream):
     """The loading failure is properly reported."""
 
-    with pytest.raises(pack.ValidationError):
+    with pytest.raises(exceptions.InvalidStream):
         pack.ModPack.load(yaml_stream)
 
 
