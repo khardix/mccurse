@@ -1,5 +1,6 @@
 """Mod-pack file format interface."""
 
+import os
 from collections import OrderedDict, ChainMap
 from contextlib import contextmanager
 from pathlib import Path
@@ -7,12 +8,13 @@ from typing import Mapping, TextIO, Type, Generator, Iterable
 
 import attr
 import cerberus
+import requests
 from attr import validators as vld
 
 from . import _
 from .addon import File
 from .curse import Game
-from .util import yaml, cerberus as crb
+from .util import yaml, cerberus as crb, default_new_session
 
 
 # Pack structure for validation
@@ -108,6 +110,34 @@ class ModPack:
         data['files']['dependencies'] = list(self.dependencies.values())
 
         yaml.dump(data, stream)
+
+    def fetch(self: 'ModPack', file: File, *, session: requests.Session = None):
+        """Fetch file from the Curse CDN, if it not already exists in the target directory.
+
+        Keyword arguments:
+            path -- The target directory to store the file to.
+            session -- The session to use for downloading the file.
+
+        Raises:
+            OSerror: Path do not exists or is not a directory.
+            requests.HTTPerror: On HTTP errors.
+        """
+
+        session = default_new_session(session)
+
+        if not self.path.is_dir():
+            raise NotADirectoryError(str(self.path))
+
+        target = self.path / file.name
+        # Skip up-to-date files
+        if target.exists() and target.stat().st_mtime == file.date.timestamp():
+            return target
+
+        remote = session.get(file.url)
+        remote.raise_for_status()
+
+        target.write_bytes(remote.content)
+        os.utime(str(target), times=(file.date.timestamp(),)*2)
 
     @contextmanager
     def replacing(self: 'ModPack', change: FileChange) -> Generator[File, None, None]:

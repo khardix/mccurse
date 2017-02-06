@@ -5,8 +5,11 @@ from io import StringIO
 from pathlib import Path
 from typing import Sequence, Tuple
 
+import betamax
 import cerberus
 import pytest
+import requests
+import responses
 
 from mccurse import pack
 from mccurse.addon import Release, File, Mod
@@ -218,6 +221,30 @@ def test_modpack_roundtrip(modpack):
     restored = pack.ModPack.load(iostream)
 
     assert restored == modpack
+
+
+def test_modpack_fetch(minimal_pack, tinkers_construct_file):
+    """Does the File.fetch fetches the file correctly?"""
+
+    minimal_pack.path /= 'files'
+    session = requests.Session()
+    file = tinkers_construct_file
+
+    with betamax.Betamax(session).use_cassette('file-fetch'):
+        with pytest.raises(OSError):
+            minimal_pack.fetch(file, session=session)
+
+        minimal_pack.path.mkdir()
+        minimal_pack.fetch(file, session=session)
+
+        filepath = minimal_pack.path / file.name
+        assert filepath.is_file()
+        assert filepath.stat().st_mtime == file.date.timestamp()
+
+    with responses.RequestsMock() as rsps:
+        minimal_pack.fetch(file, session=session)
+
+        assert len(rsps.calls) == 0
 
 
 # # Dependency resolution tests
