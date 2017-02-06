@@ -204,28 +204,28 @@ class FileChange:
     @property
     def old_path(self):
         """Full path to the old file."""
-        if self.old_file is None:
-            return None
-        else:
+        if self.__valid_source:
             return self.pack.path / self.old_file.name
+        else:
+            return None
 
     @property
     def new_path(self):
         """Full path to the new file."""
-        if self.new_file is None:
-            return None
-        else:
+        if self.__valid_destination:
             return self.pack.path / self.new_file.name
+        else:
+            return None
 
     @property
     def tmp_path(self):
         """Full path to the old file."""
-
-        if self.old_file is None:
+        if self.__valid_source:
+            tmp_name = '.'.join([self.old_file.name, 'disabled'])
+            return self.pack.path / tmp_name
+        else:
             return None
 
-        tmp_name = '.'.join([self.old_file.name, 'disabled'])
-        return self.pack.path / tmp_name
 
 
 def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:
