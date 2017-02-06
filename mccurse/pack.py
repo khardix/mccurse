@@ -165,6 +165,50 @@ class ModPack:
         )
 
 
+@attr.s(slots=True)
+class FileChange:
+    """File change within a mod-pack, both in metadata and on file system."""
+
+    #: ModPack to be changed
+    pack = attr.ib(validator=vld.instance_of(ModPack))
+    #: Source metadata storage
+    source = attr.ib(validator=vld.optional(vld.instance_of(OrderedDict)))
+    #: Old file, which should be removed from file system and source storage
+    old_file = attr.ib(validator=vld.optional(vld.instance_of(File)))
+    #: Destination metadata storage
+    destination = attr.ib(validator=vld.optional(vld.instance_of(OrderedDict)))
+    #: New file, which should be added to the file system and destination storage
+    new_file = attr.ib(validator=vld.optional(vld.instance_of(File)))
+
+    # Path properties
+
+    @property
+    def old_path(self):
+        """Full path to the old file."""
+        if self.old_file is None:
+            return None
+        else:
+            return self.pack.path / self.old_file.name
+
+    @property
+    def new_path(self):
+        """Full path to the new file."""
+        if self.new_file is None:
+            return None
+        else:
+            return self.pack.path / self.new_file.name
+
+    @property
+    def tmp_path(self):
+        """Full path to the old file."""
+
+        if self.old_file is None:
+            return None
+
+        tmp_name = '.'.join([self.old_file.name, 'disabled'])
+        return self.pack.path / tmp_name
+
+
 def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:
     """Fully resolve dependecies of a root :class:`addon.File`.
 

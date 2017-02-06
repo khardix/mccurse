@@ -1,9 +1,10 @@
 """Tests for the pack submodule"""
 
-from datetime import datetime, timezone
+from copy import deepcopy
+from datetime import datetime, timezone, timedelta
 from io import StringIO
 from pathlib import Path
-from typing import Sequence, Tuple
+from typing import Sequence, Tuple, Optional
 
 import betamax
 import cerberus
@@ -44,8 +45,8 @@ def valid_pack(minecraft, tmpdir, tinkers_construct_file, mantle_file) -> pack.M
 def valid_pack_with_file_contents(valid_pack) -> pack.ModPack:
     """Mod-pack with actual file contents on expected places."""
 
-    mfile = next(valid_pack.mods.values())
-    dfile = next(valid_pack.dependencies.values())
+    mfile = next(iter(valid_pack.mods.values()))
+    dfile = next(iter(valid_pack.dependencies.values()))
 
     mpath, dpath = map(lambda f: valid_pack.path / f.name, (mfile, dfile))
 
@@ -55,6 +56,74 @@ def valid_pack_with_file_contents(valid_pack) -> pack.ModPack:
         d.write('DEP:FIXTURE')
 
     return valid_pack
+
+
+# # FileChange fixtures
+
+@pytest.fixture
+def change_install(minimal_pack, tinkers_construct_file) -> pack.FileChange:
+    """Change representing installation of a file."""
+
+    return pack.FileChange(
+        pack=minimal_pack,
+        source=None, old_file=None,
+        destination=minimal_pack.mods, new_file=tinkers_construct_file,
+    )
+
+
+@pytest.fixture
+def change_explicit(valid_pack_with_file_contents) -> pack.FileChange:
+    """Change representing marking file as explicitly installed."""
+
+    file = next(iter(valid_pack_with_file_contents.dependencies.values()))
+
+    return pack.FileChange(
+        pack=valid_pack_with_file_contents,
+        source=valid_pack_with_file_contents.dependencies, old_file=file,
+        destination=valid_pack_with_file_contents.mods, new_file=file,
+    )
+
+
+@pytest.fixture
+def change_upgrade(valid_pack_with_file_contents) -> pack.FileChange:
+    """Change representing file upgrade."""
+
+    modpack = valid_pack_with_file_contents
+    file = next(iter(modpack.mods.values()))
+
+    # Prepare dummy update
+    new_file = deepcopy(file)
+    new_file.id += 1
+    new_file.name = 'NEW-' + new_file.name
+    new_file.date += timedelta(days=1)
+
+    return pack.FileChange(
+        pack=modpack,
+        source=modpack.mods, old_file=file,
+        destination=modpack.mods, new_file=new_file,
+    )
+
+
+@pytest.fixture
+def change_remove(valid_pack_with_file_contents) -> pack.FileChange:
+    """Change representing file removal."""
+
+    modpack = valid_pack_with_file_contents
+    file = next(iter(modpack.mods.values()))
+
+    return pack.FileChange(
+        pack=modpack,
+        source=modpack.mods, old_file=file,
+        destination=None, new_file=None,
+    )
+
+
+parametrize_all_changes = pytest.mark.parametrize('change', [
+    pytest.lazy_fixture('change_install'),
+    pytest.lazy_fixture('change_explicit'),
+    pytest.lazy_fixture('change_upgrade'),
+    pytest.lazy_fixture('change_remove'),
+])
 
 
 # # YAML fixtures
@@ -164,6 +233,31 @@ def circular_dependency() -> Tuple[File, dict, Sequence]:
 
 
 # Tests
+
+# # File changes
+
+@parametrize_all_changes
+def test_change_shortcuts(change):
+    """Verify the values of shortcut properties."""
+
+    def make_path(root: Path, file: Optional[File], extra_suffix: str = None) -> Optional[Path]:
+        if file is None:
+            return None
+        if extra_suffix is not None:
+            name = '.'.join([file.name, extra_suffix])
+        else:
+            name = file.name
+
+        return root / name
+
+    EXPECT_NEW = make_path(change.pack.path, change.new_file)
+    EXPECT_OLD = make_path(change.pack.path, change.old_file)
+    EXPECT_TMP = make_path(change.pack.path, change.old_file, 'disabled')
+
+    assert change.new_path == EXPECT_NEW
+    assert change.old_path == EXPECT_OLD
+    assert change.tmp_path == EXPECT_TMP
+
 
 # # YAML validation, loading and dumping
 
