@@ -1,9 +1,10 @@
 """Mod-pack file format interface."""
 
 import os
+from contextlib import suppress
 from collections import OrderedDict, ChainMap
 from pathlib import Path
-from typing import Mapping, TextIO, Type, Generator, Iterable
+from typing import Mapping, TextIO, Type, Generator, Iterable, Optional
 
 import attr
 import cerberus
@@ -190,6 +191,16 @@ class FileChange:
         """Indicates that destination operations may be safely performed."""
         return all(v is not None for v in (self.destination, self.new_file))
 
+    @property
+    def __file_change(self):
+        """Indicate that the file name and/or contents should be changed."""
+        return self.new_file != self.old_file
+
+    @property
+    def __store_change(self):
+        """Indicate that the storage of the file should be changed."""
+        return self.destination != self.source
+
     def __attr_post_init__(self):
         if self.__valid_source or self.__valid_destination:
             return
@@ -226,6 +237,49 @@ class FileChange:
         else:
             return None
 
+    # Change context
+
+    def __enter__(self: 'FileChange') -> Optional[File]:
+        """Prepare storage and file system for potential new file.
+
+        Returns:
+            The new file metadata, if there is a file to be manipulated.
+        """
+
+        if self.__valid_source:
+            if self.__store_change:
+                del self.source[self.old_file.mod.id]
+            if self.__file_change:
+                self.old_path.rename(self.tmp_path)
+
+        if self.__valid_destination and self.__file_change:
+            return self.new_file
+        else:
+            return None
+
+    def __exit__(self: 'FileChange', *exc) -> None:
+        """Clean up after change -- both success and failure."""
+
+        if any(exc):  # Failure -- rollback
+            if self.__valid_destination:
+                if self.__file_change:
+                    # Ignore missing file on deletion
+                    with suppress(FileNotFoundError):
+                        self.new_path.unlink()
+
+            if self.__valid_source:
+                if self.__file_change:
+                    self.tmp_path.rename(self.old_path)
+                if self.__store_change:
+                    self.source[self.old_file.mod.id] = self.old_file
+
+        else:  # Success -- change metadata
+            if self.__valid_destination:
+                self.destination[self.new_file.mod.id] = self.new_file
+
+            # Clean temporary file
+            if self.__valid_source and self.__file_change:
+                    self.tmp_path.unlink()
 
 
 def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:

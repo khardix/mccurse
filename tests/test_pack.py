@@ -19,6 +19,10 @@ from mccurse.pack import resolve
 from mccurse.util import yaml
 
 
+class SimulatedException(Exception):
+    """Simulated exception thrown for testing purposes."""
+
+
 # Fixtures
 
 # # Pack fixtures
@@ -257,6 +261,166 @@ def test_change_shortcuts(change):
     assert change.new_path == EXPECT_NEW
     assert change.old_path == EXPECT_OLD
     assert change.tmp_path == EXPECT_TMP
+
+
+def test_change_installation(change_install):
+    """Assert proper handling of installation change."""
+
+    EXPECT_CONTENT = 'MOD:INSTALL\n'
+
+    def assert_pre_conditions(mp: pack.ModPack, file: File):
+        path = mp.path / file.name
+        assert file.mod.id not in mp.mods
+        assert not path.exists()
+
+    def assert_post_conditions(mp: pack.ModPack, file: File):
+        path = mp.path / file.name
+        assert file.mod.id in mp.mods
+        assert path.is_file()
+        assert path.read_text(encoding='utf-8') == EXPECT_CONTENT
+
+    assert_pre_conditions(change_install.pack, change_install.new_file)
+
+    with pytest.raises(SimulatedException), change_install as nfile:
+        assert nfile is not None
+        assert change_install.tmp_path is None
+
+        npath = change_install.pack.path / nfile.name
+        npath.write_text(EXPECT_CONTENT, encoding='utf-8')
+        raise SimulatedException()
+
+    assert_pre_conditions(change_install.pack, change_install.new_file)
+
+    with change_install as nfile:
+        assert nfile is not None
+        assert change_install.tmp_path is None
+
+        npath = change_install.pack.path / nfile.name
+        npath.write_text(EXPECT_CONTENT, encoding='utf-8')
+
+    assert_post_conditions(change_install.pack, change_install.new_file)
+
+
+def test_change_mark_explicit(change_explicit):
+    """Assert handling of explicit mark."""
+
+    EXPECT_CONTENT = change_explicit.old_path.read_text(encoding='utf-8')
+
+    def assert_pre_conditions(mp: pack.ModPack, file: File):
+        path = mp.path / file.name
+        assert file.mod.id in mp.dependencies
+        assert file.mod.id not in mp.mods
+        assert path.exists()
+        assert path.read_text(encoding='utf-8') == EXPECT_CONTENT
+
+    def assert_post_conditions(mp: pack.ModPack, file: File):
+        path = mp.path / file.name
+        assert file.mod.id not in mp.dependencies
+        assert file.mod.id in mp.mods
+        assert path.exists()
+        assert path.read_text(encoding='utf-8') == EXPECT_CONTENT
+
+    assert_pre_conditions(change_explicit.pack, change_explicit.old_file)
+
+    with pytest.raises(SimulatedException), change_explicit as nfile:
+        assert nfile is None
+
+        raise SimulatedException
+
+    assert_pre_conditions(change_explicit.pack, change_explicit.old_file)
+
+    with change_explicit as nfile:
+        assert nfile is None
+
+    assert_post_conditions(change_explicit.pack, change_explicit.new_file)
+
+
+def test_change_upgrade(change_upgrade):
+    """Assert handling of upgrade."""
+
+    EXPECT_OLD_CONTENT = change_upgrade.old_path.read_text(encoding='utf-8')
+    EXPECT_NEW_CONTENT = 'MOD:UPGRADE\n'
+
+    def assert_pre_conditions(mp: pack.ModPack, ofile: File, nfile: File):
+        opath, npath = map(mp.path.joinpath, (ofile.name, nfile.name))
+
+        assert ofile.mod.id == nfile.mod.id
+        assert mp.mods[ofile.mod.id].id == ofile.id
+        assert mp.mods[nfile.mod.id].id != nfile.id
+
+        assert opath.exists()
+        assert opath.read_text(encoding='utf-8') == EXPECT_OLD_CONTENT
+        assert not npath.exists()
+
+    def assert_post_conditions(mp: pack.ModPack, ofile: File, nfile: File):
+        opath, npath = map(mp.path.joinpath, (ofile.name, nfile.name))
+
+        assert ofile.mod.id == nfile.mod.id
+        assert mp.mods[ofile.mod.id].id != ofile.id
+        assert mp.mods[nfile.mod.id].id == nfile.id
+
+        assert not opath.exists()
+        assert npath.exists()
+        assert npath.read_text(encoding='utf-8') == EXPECT_NEW_CONTENT
+
+    assert_pre_conditions(change_upgrade.pack, change_upgrade.old_file, change_upgrade.new_file)
+
+    with pytest.raises(SimulatedException), change_upgrade as nfile:
+        assert nfile is not None
+        assert change_upgrade.tmp_path.exists()
+
+        npath = change_upgrade.pack.path / nfile.name
+        npath.write_text(EXPECT_NEW_CONTENT, encoding='utf-8')
+
+        raise SimulatedException()
+
+    assert_pre_conditions(change_upgrade.pack, change_upgrade.old_file, change_upgrade.new_file)
+
+    with change_upgrade as nfile:
+        assert nfile is not None
+        assert change_upgrade.tmp_path.exists()
+
+        npath = change_upgrade.pack.path / nfile.name
+        npath.write_text(EXPECT_NEW_CONTENT, encoding='utf-8')
+
+    assert_post_conditions(change_upgrade.pack, change_upgrade.old_file, change_upgrade.new_file)
+
+
+def test_change_remove(change_remove):
+    """Assert handling of removal."""
+
+    EXPECT_CONTENT = change_remove.old_path.read_text(encoding='utf-8')
+
+    def assert_pre_conditions(mp: pack.ModPack, file: File):
+        path = mp.path / file.name
+
+        assert file.mod.id in mp.mods
+        assert path.exists()
+        assert path.read_text(encoding='utf-8') == EXPECT_CONTENT
+
+    def assert_post_conditions(mp: pack.ModPack, file: File):
+        path = mp.path / file.name
+
+        assert file.mod.id not in mp.mods
+        assert not path.exists()
+
+    assert_params = change_remove.pack, change_remove.old_file
+
+    assert_pre_conditions(*assert_params)
+
+    with pytest.raises(SimulatedException), change_remove as nfile:
+        assert nfile is None
+        assert change_remove.tmp_path.exists()
+
+        raise SimulatedException()
+
+    assert_pre_conditions(*assert_params)
+
+    with change_remove as nfile:
+        assert nfile is None
+        assert change_remove.tmp_path.exists()
+
+    assert_post_conditions(*assert_params)
 
 
 # # YAML validation, loading and dumping
