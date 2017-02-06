@@ -180,6 +180,25 @@ class FileChange:
     #: New file, which should be added to the file system and destination storage
     new_file = attr.ib(validator=vld.optional(vld.instance_of(File)))
 
+    @property
+    def __valid_source(self):
+        """Indicates that source operations may be safely performed."""
+        return all(v is not None for v in (self.source, self.old_file))
+
+    @property
+    def __valid_destination(self):
+        """Indicates that destination operations may be safely performed."""
+        return all(v is not None for v in (self.destination, self.new_file))
+
+    def __attr_post_init__(self):
+        if self.__valid_source or self.__valid_destination:
+            return
+
+        if not self.__valid_source:
+            raise TypeError('Invalid FileChange: source')
+        elif not self.__valid_destination:
+            raise TypeError('Invalid FileChange: destination')
+
     # Path properties
 
     @property
