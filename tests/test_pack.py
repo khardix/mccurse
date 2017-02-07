@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 from datetime import datetime, timezone, timedelta
+from itertools import repeat
 from io import StringIO
 from pathlib import Path
 from typing import Sequence, Tuple, Optional
@@ -549,6 +550,45 @@ def test_modpack_fetch(minimal_pack, tinkers_construct_file):
         minimal_pack.fetch(file, session=session)
 
         assert len(rsps.calls) == 0
+
+
+def test_modpack_filter_obsoletes(
+    valid_pack,
+    tinkers_construct_file,
+    tinkers_update,
+    mantle_file
+):
+    """Test filtering of obsolete files."""
+
+    older = deepcopy(mantle_file)
+    older.date -= timedelta(hours=1)
+
+    INPUT = [older, tinkers_construct_file, tinkers_update, mantle_file]
+    EXPECT = {tinkers_update}
+
+    assert set(valid_pack.filter_obsoletes(INPUT)) == EXPECT
+
+
+def test_modpack_orphans(valid_pack, mantle_file):
+    """Test if the orphan is found properly"""
+
+    orphan_parent, orphan_child = map(deepcopy, repeat(mantle_file, 2))
+
+    # Create orphan that is depended upon by orphan_parent
+    orphan_child.mod.id += 42
+    orphan_child.name = 'ORPHAN:CHILD'
+
+    # Create orphan with a dependency on its own
+    orphan_parent.mod.id = orphan_child.mod.id + 42
+    orphan_parent.dependencies.append(orphan_child.mod.id)
+    orphan_parent.name = 'ORPHAN:PARENT'
+
+    # Add both orphans to the dependencies
+    valid_pack.dependencies.update(
+        (o.mod.id, o) for o in (orphan_parent, orphan_child)
+    )
+
+    assert set(valid_pack.orphans()) == {orphan_parent, orphan_child}
 
 
 # # Dependency resolution tests
