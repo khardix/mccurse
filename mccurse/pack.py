@@ -34,6 +34,39 @@ cerberus.schema_registry.add('pack', {
 })
 
 
+def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:
+    """Fully resolve dependecies of a root :class:`addon.File`.
+
+    Keyword arguments:
+        root: The `addon.File` to resolve dependencies for.
+        pool: Available potential dependencies. Mapping from mod identification
+            to corresponding file.
+
+    Returns:
+        Ordered mapping of all the dependencies, in breadth-first order,
+        including the root.
+    """
+
+    # Result – resolved dependencies
+    resolved = OrderedDict()
+    resolved[root.mod.id] = root
+    # Which mods needs to be checked
+    queue = list(root.dependencies)
+
+    for dep_id in queue:
+        if dep_id in resolved:
+            continue
+
+        # Get the dependency
+        dependency = pool[dep_id]
+        # Mark its dependencies for processing
+        queue.extend(dependency.dependencies)
+        # Add the dependency to chain
+        resolved[dep_id] = dependency
+
+    return resolved
+
+
 @attr.s(slots=True)
 class ModPack:
     """Interface to single mod-pack data."""
@@ -382,36 +415,3 @@ class FileChange:
             # Clean temporary file
             if self.__valid_source and self.__file_change:
                     self.tmp_path.unlink()
-
-
-def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:
-    """Fully resolve dependecies of a root :class:`addon.File`.
-
-    Keyword arguments:
-        root: The `addon.File` to resolve dependencies for.
-        pool: Available potential dependencies. Mapping from mod identification
-            to corresponding file.
-
-    Returns:
-        Ordered mapping of all the dependencies, in breadth-first order,
-        including the root.
-    """
-
-    # Result – resolved dependencies
-    resolved = OrderedDict()
-    resolved[root.mod.id] = root
-    # Which mods needs to be checked
-    queue = list(root.dependencies)
-
-    for dep_id in queue:
-        if dep_id in resolved:
-            continue
-
-        # Get the dependency
-        dependency = pool[dep_id]
-        # Mark its dependencies for processing
-        queue.extend(dependency.dependencies)
-        # Add the dependency to chain
-        resolved[dep_id] = dependency
-
-    return resolved
