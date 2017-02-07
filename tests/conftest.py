@@ -51,6 +51,25 @@ def tinkers_construct_file(tinkers_construct) -> addon.File:
     """Tinkers construct file."""
 
     return addon.File(
+        id=2338518,
+        mod=tinkers_construct,
+        name='TConstruct-1.10.2-2.5.6b.jar',
+        date=datetime(
+            year=2016, month=10, day=22,
+            hour=15, minute=11, second=19,
+            tzinfo=timezone.utc,
+        ),
+        release=proxy.Release.Release,
+        url='https://addons.cursecdn.com/files/2338/518/TConstruct-1.10.2-2.5.6b.jar',
+        dependencies=[74924],
+    )
+
+
+@pytest.fixture
+def tinkers_update(tinkers_construct) -> addon.File:
+    """Update for tinkers_construct_file."""
+
+    return addon.File(
         id=2353329,
         mod=tinkers_construct,
         name='TConstruct-1.10.2-2.6.1.jar',

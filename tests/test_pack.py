@@ -91,18 +91,6 @@ def change_explicit(valid_pack_with_file_contents) -> pack.FileChange:
 
 
 @pytest.fixture
-def tinkers_update(tinkers_construct_file) -> File:
-    """Updated file for tinkers construct."""
-
-    update = deepcopy(tinkers_construct_file)
-    update.id += 1
-    update.name = 'NEW-' + update.name
-    update.date += timedelta(days=1)
-
-    return update
-
-
-@pytest.fixture
 def change_upgrade(valid_pack_with_file_contents, tinkers_update) -> pack.FileChange:
     """Change representing file upgrade."""
 
@@ -528,12 +516,12 @@ def test_modpack_roundtrip(modpack):
     assert restored == modpack
 
 
-def test_modpack_fetch(minimal_pack, tinkers_construct_file):
+def test_modpack_fetch(minimal_pack, tinkers_update):
     """Does the File.fetch fetches the file correctly?"""
 
     minimal_pack.path /= 'files'
     session = requests.Session()
-    file = tinkers_construct_file
+    file = tinkers_update
 
     with betamax.Betamax(session).use_cassette('file-fetch'):
         with pytest.raises(OSError):
