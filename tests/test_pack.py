@@ -89,22 +89,28 @@ def change_explicit(valid_pack_with_file_contents) -> pack.FileChange:
 
 
 @pytest.fixture
-def change_upgrade(valid_pack_with_file_contents) -> pack.FileChange:
+def tinkers_update(tinkers_construct_file) -> File:
+    """Updated file for tinkers construct."""
+
+    update = deepcopy(tinkers_construct_file)
+    update.id += 1
+    update.name = 'NEW-' + update.name
+    update.date += timedelta(days=1)
+
+    return update
+
+
+@pytest.fixture
+def change_upgrade(valid_pack_with_file_contents, tinkers_update) -> pack.FileChange:
     """Change representing file upgrade."""
 
     modpack = valid_pack_with_file_contents
     file = next(iter(modpack.mods.values()))
 
-    # Prepare dummy update
-    new_file = deepcopy(file)
-    new_file.id += 1
-    new_file.name = 'NEW-' + new_file.name
-    new_file.date += timedelta(days=1)
-
     return pack.FileChange(
         pack=modpack,
         source=modpack.mods, old_file=file,
-        destination=modpack.mods, new_file=new_file,
+        destination=modpack.mods, new_file=tinkers_update,
     )
 
 
