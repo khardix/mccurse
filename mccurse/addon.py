@@ -168,26 +168,29 @@ class Release(Enum):
 
 
 @yaml.tag('!modfile', type=yaml.NodeType.MAPPING)
-@attr.s(slots=True, hash=False)
+@attr.s(slots=True)
 class File:
     """Metadata of a file belonging to some mod."""
+
+    # Data for hashing: id, name, date
 
     #: File identification
     id = attr.ib(validator=vld.instance_of(int))
     #: Associated mod identification
-    mod = attr.ib(validator=vld.instance_of(Mod))
+    mod = attr.ib(validator=vld.instance_of(Mod), hash=False)
     #: File system base name
     name = attr.ib(validator=vld.instance_of(str))
     #: Publication date
     date = attr.ib(validator=vld.instance_of(datetime))
     #: Release type
-    release = attr.ib(validator=vld.instance_of(Release))
+    release = attr.ib(validator=vld.instance_of(Release), hash=False)
     #: Remote URL for download
-    url = attr.ib(validator=vld.instance_of(str))
+    url = attr.ib(validator=vld.instance_of(str), hash=False)
     #: Dependencies; {mod_id: File}
     dependencies = attr.ib(
         validator=vld.optional(vld.instance_of(list)),
         default=attr.Factory(list),
+        hash=False,
     )
 
     @classmethod
