@@ -579,6 +579,46 @@ def test_modpack_orphans(valid_pack, mantle_file):
     assert set(valid_pack.orphans()) == {orphan_parent, orphan_child}
 
 
+def test_modpack_apply(
+        minimal_pack,
+        minecraft,
+        tinkers_construct_file,
+        mantle_file,
+        tinkers_update
+):
+    """Test proper application of change sequence."""
+
+    session = requests.Session()
+
+    mp = minimal_pack
+    mp.game = minecraft
+
+    with betamax.Betamax(session).use_cassette('modpack-apply'):
+        changes_install = [
+            pack.FileChange.installation(mp, where=mp.dependencies, file=mantle_file),
+            pack.FileChange.installation(mp, where=mp.mods, file=tinkers_construct_file),
+        ]
+        minimal_pack.apply(changes_install, session=session)
+
+        # Upgrade requires the mod to already exist in the mod-pack
+        changes_upgrade = [
+            pack.FileChange.explicit(mp, file=mantle_file),
+            pack.FileChange.upgrade(mp, file=tinkers_update),
+        ]
+        minimal_pack.apply(changes_upgrade, session=session)
+
+    assert not minimal_pack.dependencies
+    assert len(minimal_pack.mods) == 2
+    assert mantle_file.mod.id in minimal_pack.mods
+    assert tinkers_update.mod.id in minimal_pack.mods
+    assert minimal_pack.mods[tinkers_construct_file.mod.id] == tinkers_update
+
+    mantle_path = mp.path / mantle_file.name
+    tinkers_path = mp.path / tinkers_update.name
+
+    assert mantle_path.exists() and tinkers_path.exists()
+
+
 # # Dependency resolution tests
 
 def test_resolve_multiple(multiple_dependency):

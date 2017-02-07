@@ -1,17 +1,17 @@
 """Mod-pack file format interface."""
 
 import os
-from contextlib import suppress
+from contextlib import suppress, ExitStack
 from collections import OrderedDict, ChainMap
 from pathlib import Path
-from typing import Mapping, TextIO, Type, Generator, Iterable, Optional
+from typing import Mapping, TextIO, Type, Generator, Iterable, Optional, Sequence
 
 import attr
 import cerberus
 import requests
 from attr import validators as vld
 
-from . import _
+from . import _, log
 from .addon import File
 from .exceptions import InvalidStream
 from .curse import Game
@@ -197,6 +197,36 @@ class ModPack:
             file for m_id, file in self.dependencies.items()
             if m_id not in needed
         )
+
+    def apply(
+        self: 'ModPack',
+        changes: Sequence['FileChange'],
+        *,
+        session: requests.Session = None
+    ) -> None:
+        """Applies all provided changes.
+
+        Possible destructive operation, use with care.
+
+        Keyword arguments:
+            changes: The changes to be applied.
+            session: If there is a change which calls for a new file content,
+                use this session to download it.
+        """
+
+        session = default_new_session(session)
+
+        with ExitStack() as transaction:
+            for change in changes:
+                nfile = transaction.enter_context(change)
+
+                # Nothing more to do
+                if nfile is None:
+                    continue
+
+                # Change is asking for new file; fetch it
+                log.info(_('Downloading {0.name}').format(nfile))
+                self.fetch(nfile, session=session)
 
 
 @attr.s(slots=True)
