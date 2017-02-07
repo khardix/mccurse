@@ -563,9 +563,9 @@ def test_modpack_filter_obsoletes(
     older.date -= timedelta(hours=1)
 
     INPUT = [older, tinkers_construct_file, tinkers_update, mantle_file]
-    EXPECT = [tinkers_update]
+    EXPECT = {tinkers_update}
 
-    assert list(valid_pack.filter_obsoletes(INPUT)) == EXPECT
+    assert set(valid_pack.filter_obsoletes(INPUT)) == EXPECT
 
 
 # # Dependency resolution tests
