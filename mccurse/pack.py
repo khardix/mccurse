@@ -1,18 +1,21 @@
 """Mod-pack file format interface."""
 
+import os
+from contextlib import suppress
 from collections import OrderedDict, ChainMap
-from contextlib import contextmanager
 from pathlib import Path
-from typing import Mapping, TextIO, Type, Generator, Iterable
+from typing import Mapping, TextIO, Type, Generator, Iterable, Optional
 
 import attr
 import cerberus
+import requests
 from attr import validators as vld
 
 from . import _
 from .addon import File
+from .exceptions import InvalidStream
 from .curse import Game
-from .util import yaml, cerberus as crb
+from .util import yaml, cerberus as crb, default_new_session
 
 
 # Pack structure for validation
@@ -29,28 +32,6 @@ cerberus.schema_registry.add('pack', {
         'dependencies': modlist,
     }},
 })
-
-
-class ValidationError(ValueError):
-    """Exception for reporting invalid pack data."""
-
-    __slots__ = 'errors',
-
-    def __init__(self, msg: str, errors: dict):
-        super().__init__(msg)
-        self.errors = errors
-
-
-@attr.s(slots=True)
-class FileChange:
-    """Description of a change inside a ModPack."""
-
-    #: Dictionary with old version of the file
-    old_store = attr.ib(validator=vld.instance_of(Mapping))
-    #: Dictionary which should receive the new version of the file
-    new_store = attr.ib(validator=vld.instance_of(Mapping))
-    #: New version of the file
-    file = attr.ib(validator=vld.instance_of(File))
 
 
 @attr.s(slots=True)
@@ -83,7 +64,7 @@ class ModPack:
 
         if not validator.validate(yaml.load(stream)):
             msg = _('Modpack file contains invalid data'), validator.errors
-            raise ValidationError(*msg)
+            raise InvalidStream(*msg)
         else:
             data = validator.document
             return cls(
@@ -109,34 +90,33 @@ class ModPack:
 
         yaml.dump(data, stream)
 
-    @contextmanager
-    def replacing(self: 'ModPack', change: FileChange) -> Generator[File, None, None]:
-        """Prepare file system for receiving a new file, and cleans up afterwards.
+    def fetch(self: 'ModPack', file: File, *, session: requests.Session = None):
+        """Fetch file from the Curse CDN, if it not already exists in the target directory.
 
         Keyword arguments:
-            change: The file change about to be executed.
+            path -- The target directory to store the file to.
+            session -- The session to use for downloading the file.
 
-        Yields:
-            The new file metadata.
+        Raises:
+            OSerror: Path do not exists or is not a directory.
+            requests.HTTPerror: On HTTP errors.
         """
 
-        nfile = change.file
-        ofile = change.old_store[nfile.mod.id]
+        session = default_new_session(session)
 
-        # Temporary rename of the old file
-        enabled = self.path / ofile.name
-        disabled = enabled.with_suffix('.'.join((enabled.suffix, 'disabled')))
+        if not self.path.is_dir():
+            raise NotADirectoryError(str(self.path))
 
-        try:
-            enabled.rename(disabled)
-            yield nfile
-        except:  # Error, remove new file and rename the old back
-            self.path.joinpath(nfile.name).unlink()
-            disabled.rename(enabled)
-        else:  # No error, remove disabled file
-            change.new_store[nfile.mod.id] = nfile
-            del change.old_store[ofile.mod.id]
-            disabled.unlink()
+        target = self.path / file.name
+        # Skip up-to-date files
+        if target.exists() and target.stat().st_mtime == file.date.timestamp():
+            return target
+
+        remote = session.get(file.url)
+        remote.raise_for_status()
+
+        target.write_bytes(remote.content)
+        os.utime(str(target), times=(file.date.timestamp(),)*2)
 
     def filter_obsoletes(
         self: 'ModPack',
@@ -184,6 +164,224 @@ class ModPack:
             file for m_id, file in self.dependencies.items()
             if m_id not in needed
         )
+
+
+@attr.s(slots=True)
+class FileChange:
+    """File change within a mod-pack, both in metadata and on file system."""
+
+    #: ModPack to be changed
+    pack = attr.ib(validator=vld.instance_of(ModPack))
+    #: Source metadata storage
+    source = attr.ib(validator=vld.optional(vld.instance_of(OrderedDict)))
+    #: Old file, which should be removed from file system and source storage
+    old_file = attr.ib(validator=vld.optional(vld.instance_of(File)))
+    #: Destination metadata storage
+    destination = attr.ib(validator=vld.optional(vld.instance_of(OrderedDict)))
+    #: New file, which should be added to the file system and destination storage
+    new_file = attr.ib(validator=vld.optional(vld.instance_of(File)))
+
+    @property
+    def __valid_source(self):
+        """Indicates that source operations may be safely performed."""
+        return all(v is not None for v in (self.source, self.old_file))
+
+    @property
+    def __valid_destination(self):
+        """Indicates that destination operations may be safely performed."""
+        return all(v is not None for v in (self.destination, self.new_file))
+
+    @property
+    def __file_change(self):
+        """Indicate that the file name and/or contents should be changed."""
+        return self.new_file != self.old_file
+
+    @property
+    def __store_change(self):
+        """Indicate that the storage of the file should be changed."""
+        return self.destination != self.source
+
+    def __attr_post_init__(self):
+        if self.__valid_source or self.__valid_destination:
+            return
+
+        if not self.__valid_source:
+            raise TypeError('Invalid FileChange: source')
+        elif not self.__valid_destination:
+            raise TypeError('Invalid FileChange: destination')
+
+    # Creation helpers
+
+    @classmethod
+    def installation(
+        cls: Type['FileChange'],
+        mp: ModPack,
+        where: OrderedDict,
+        file: File
+    ) -> 'FileChange':
+        """Create new change for installation.
+
+        Keyword arguments:
+            mp: The ModPack to install to.
+            where: Where in the ModPack to install (mods or dependencies).
+            file: The file to install.
+
+        Returns:
+            Installation FileChange.
+        """
+
+        return cls(mp, source=None, old_file=None, destination=where, new_file=file)
+
+    @classmethod
+    def explicit(
+        cls: Type['FileChange'],
+        mp: ModPack,
+        file: File
+    ) -> 'FileChange':
+        """Create new change for marking dependency as explicitly installed.
+
+        Keyword arguments:
+            mp: Which ModPack to modify.
+            file: The dependency to mark as mod.
+
+        Returns:
+            Explicit mark FileChange.
+        """
+
+        return cls(
+            pack=mp,
+            source=mp.dependencies, old_file=file,
+            destination=mp.mods, new_file=file,
+        )
+
+    @classmethod
+    def upgrade(
+        cls: Type['FileChange'],
+        mp: ModPack,
+        file: File
+    ) -> 'FileChange':
+        """Create new change for upgrading a file.
+
+        Keyword arguments:
+            mp: Which ModPack to modify.
+            file: The new upgrade file.
+
+        Returns:
+            Upgrade FileChange.
+
+        Raises:
+            KeyError: No older version of the upgrade was found.
+        """
+
+        where = next(filter(lambda d: file.mod.id in d, (mp.mods, mp.dependencies)), None)
+        if where is None:
+            raise KeyError('No old file for upgrade: {file.mod!r}'.format_map(locals()))
+
+        return cls(
+            pack=mp,
+            source=where, old_file=where[file.mod.id],
+            destination=where, new_file=file,
+        )
+
+    @classmethod
+    def removal(
+        cls: Type['FileChange'],
+        mp: ModPack,
+        file: File
+    ) -> 'FileChange':
+        """Create a new change for removing a file.
+
+        Keyword arguments:
+            mp: Which ModPack to modify.
+            file: The file to remove.
+
+        Returns:
+            Remove FileChange.
+
+        Raises:
+            KeyError: File was not found in ModPack.
+        """
+
+        where = next(filter(lambda d: file.mod.id in d, (mp.mods, mp.dependencies)), None)
+        if where is None or where[file.mod.id].id != file.id:
+            raise KeyError('Removed file not found: {file.id}: {file.name!s}'.format_map(locals()))
+
+        return cls(
+            pack=mp,
+            source=where, old_file=file,
+            destination=None, new_file=None,
+        )
+
+    # Path properties
+
+    @property
+    def old_path(self):
+        """Full path to the old file."""
+        if self.__valid_source:
+            return self.pack.path / self.old_file.name
+        else:
+            return None
+
+    @property
+    def new_path(self):
+        """Full path to the new file."""
+        if self.__valid_destination:
+            return self.pack.path / self.new_file.name
+        else:
+            return None
+
+    @property
+    def tmp_path(self):
+        """Full path to the old file."""
+        if self.__valid_source:
+            tmp_name = '.'.join([self.old_file.name, 'disabled'])
+            return self.pack.path / tmp_name
+        else:
+            return None
+
+    # Change context
+
+    def __enter__(self: 'FileChange') -> Optional[File]:
+        """Prepare storage and file system for potential new file.
+
+        Returns:
+            The new file metadata, if there is a file to be manipulated.
+        """
+
+        if self.__valid_source:
+            if self.__store_change:
+                del self.source[self.old_file.mod.id]
+            if self.__file_change:
+                self.old_path.rename(self.tmp_path)
+
+        if self.__valid_destination and self.__file_change:
+            return self.new_file
+        else:
+            return None
+
+    def __exit__(self: 'FileChange', *exc) -> None:
+        """Clean up after change -- both success and failure."""
+
+        if any(exc):  # Failure -- rollback
+            if self.__valid_destination:
+                if self.__file_change:
+                    # Ignore missing file on deletion
+                    with suppress(FileNotFoundError):
+                        self.new_path.unlink()
+
+            if self.__valid_source:
+                if self.__file_change:
+                    self.tmp_path.rename(self.old_path)
+                if self.__store_change:
+                    self.source[self.old_file.mod.id] = self.old_file
+
+        else:  # Success -- change metadata
+            if self.__valid_destination:
+                self.destination[self.new_file.mod.id] = self.new_file
+
+            # Clean temporary file
+            if self.__valid_source and self.__file_change:
+                    self.tmp_path.unlink()
 
 
 def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:

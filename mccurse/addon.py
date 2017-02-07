@@ -2,15 +2,12 @@
    (i.e. Mod, mod's File, etc.).
 """
 
-import os
 from datetime import datetime
 from enum import Enum, unique
 from functools import total_ordering
-from pathlib import Path
 from typing import Any, Mapping, Sequence, Type
 
 import attr
-import requests
 from attr import validators as vld
 from iso8601 import parse_date
 from sqlalchemy import Column, Integer, String
@@ -22,7 +19,7 @@ from sqlalchemy.orm.session import Session as SQLSession
 # Used exceptions -- make them available in current namespace
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound  # noqa: F401
 
-from .util import yaml, default_new_session
+from .util import yaml
 
 # Declarative base class for DB table definitions
 AddonBase = declarative_base()
@@ -261,37 +258,3 @@ class File:
             del yml['file'][field]
 
         return yml
-
-    def fetch(self: 'File', path: Path, *, session: requests.Session = None) -> Path:
-        """Fetch file from the Curse CDN, if it not already exists in the target directory.
-
-        Keyword arguments:
-            path -- The target directory to store the file to.
-            session -- The session to use for downloading the file.
-
-        Returns:
-            Path to the fetched file.
-
-        Raises:
-            OSerror: Path do not exists or is not a directory.
-            requests.HTTPerror: On HTTP errors.
-        """
-
-        session = default_new_session(session)
-
-        if not path.is_dir():
-            raise NotADirectoryError(str(path))
-
-        target = path / self.name
-        if target.exists() and target.stat().st_mtime == self.date.timestamp():
-            return target
-
-        remote = session.get(self.url)
-        remote.raise_for_status()
-
-        with target.open(mode='wb') as ostream:
-            ostream.write(remote.content)
-
-        os.utime(str(target), times=(self.date.timestamp(),)*2)
-
-        return target

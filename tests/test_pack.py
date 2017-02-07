@@ -1,18 +1,27 @@
 """Tests for the pack submodule"""
 
-from datetime import datetime, timezone
+from copy import deepcopy
+from datetime import datetime, timezone, timedelta
 from io import StringIO
 from pathlib import Path
-from typing import Sequence, Tuple
+from typing import Sequence, Tuple, Optional
 
+import betamax
 import cerberus
 import pytest
+import requests
+import responses
+from pytest import lazy_fixture as lazy
 
-from mccurse import pack
+from mccurse import pack, exceptions
 from mccurse.addon import Release, File, Mod
 from mccurse.curse import Game
 from mccurse.pack import resolve
 from mccurse.util import yaml
+
+
+class SimulatedException(Exception):
+    """Simulated exception thrown for testing purposes."""
 
 
 # Fixtures
@@ -41,8 +50,8 @@ def valid_pack(minecraft, tmpdir, tinkers_construct_file, mantle_file) -> pack.M
 def valid_pack_with_file_contents(valid_pack) -> pack.ModPack:
     """Mod-pack with actual file contents on expected places."""
 
-    mfile = next(valid_pack.mods.values())
-    dfile = next(valid_pack.dependencies.values())
+    mfile = next(iter(valid_pack.mods.values()))
+    dfile = next(iter(valid_pack.dependencies.values()))
 
     mpath, dpath = map(lambda f: valid_pack.path / f.name, (mfile, dfile))
 
@@ -52,6 +61,80 @@ def valid_pack_with_file_contents(valid_pack) -> pack.ModPack:
         d.write('DEP:FIXTURE')
 
     return valid_pack
+
+
+# # FileChange fixtures
+
+@pytest.fixture
+def change_install(minimal_pack, tinkers_construct_file) -> pack.FileChange:
+    """Change representing installation of a file."""
+
+    return pack.FileChange(
+        pack=minimal_pack,
+        source=None, old_file=None,
+        destination=minimal_pack.mods, new_file=tinkers_construct_file,
+    )
+
+
+@pytest.fixture
+def change_explicit(valid_pack_with_file_contents) -> pack.FileChange:
+    """Change representing marking file as explicitly installed."""
+
+    file = next(iter(valid_pack_with_file_contents.dependencies.values()))
+
+    return pack.FileChange(
+        pack=valid_pack_with_file_contents,
+        source=valid_pack_with_file_contents.dependencies, old_file=file,
+        destination=valid_pack_with_file_contents.mods, new_file=file,
+    )
+
+
+@pytest.fixture
+def tinkers_update(tinkers_construct_file) -> File:
+    """Updated file for tinkers construct."""
+
+    update = deepcopy(tinkers_construct_file)
+    update.id += 1
+    update.name = 'NEW-' + update.name
+    update.date += timedelta(days=1)
+
+    return update
+
+
+@pytest.fixture
+def change_upgrade(valid_pack_with_file_contents, tinkers_update) -> pack.FileChange:
+    """Change representing file upgrade."""
+
+    modpack = valid_pack_with_file_contents
+    file = next(iter(modpack.mods.values()))
+
+    return pack.FileChange(
+        pack=modpack,
+        source=modpack.mods, old_file=file,
+        destination=modpack.mods, new_file=tinkers_update,
+    )
+
+
+@pytest.fixture
+def change_remove(valid_pack_with_file_contents) -> pack.FileChange:
+    """Change representing file removal."""
+
+    modpack = valid_pack_with_file_contents
+    file = next(iter(modpack.mods.values()))
+
+    return pack.FileChange(
+        pack=modpack,
+        source=modpack.mods, old_file=file,
+        destination=None, new_file=None,
+    )
+
+
+parametrize_all_changes = pytest.mark.parametrize('change', [
+    pytest.lazy_fixture('change_install'),
+    pytest.lazy_fixture('change_explicit'),
+    pytest.lazy_fixture('change_upgrade'),
+    pytest.lazy_fixture('change_remove'),
+])
 
 
 # # YAML fixtures
@@ -162,6 +245,230 @@ def circular_dependency() -> Tuple[File, dict, Sequence]:
 
 # Tests
 
+# # File changes
+
+@parametrize_all_changes
+def test_change_shortcuts(change):
+    """Verify the values of shortcut properties."""
+
+    def make_path(root: Path, file: Optional[File], extra_suffix: str = None) -> Optional[Path]:
+        if file is None:
+            return None
+        if extra_suffix is not None:
+            name = '.'.join([file.name, extra_suffix])
+        else:
+            name = file.name
+
+        return root / name
+
+    EXPECT_NEW = make_path(change.pack.path, change.new_file)
+    EXPECT_OLD = make_path(change.pack.path, change.old_file)
+    EXPECT_TMP = make_path(change.pack.path, change.old_file, 'disabled')
+
+    assert change.new_path == EXPECT_NEW
+    assert change.old_path == EXPECT_OLD
+    assert change.tmp_path == EXPECT_TMP
+
+
+def test_change_installation(change_install):
+    """Assert proper handling of installation change."""
+
+    EXPECT_CONTENT = 'MOD:INSTALL\n'
+
+    def assert_pre_conditions(mp: pack.ModPack, file: File):
+        path = mp.path / file.name
+        assert file.mod.id not in mp.mods
+        assert not path.exists()
+
+    def assert_post_conditions(mp: pack.ModPack, file: File):
+        path = mp.path / file.name
+        assert file.mod.id in mp.mods
+        assert path.is_file()
+        assert path.read_text(encoding='utf-8') == EXPECT_CONTENT
+
+    assert_pre_conditions(change_install.pack, change_install.new_file)
+
+    with pytest.raises(SimulatedException), change_install as nfile:
+        assert nfile is not None
+        assert change_install.tmp_path is None
+
+        npath = change_install.pack.path / nfile.name
+        npath.write_text(EXPECT_CONTENT, encoding='utf-8')
+        raise SimulatedException()
+
+    assert_pre_conditions(change_install.pack, change_install.new_file)
+
+    with change_install as nfile:
+        assert nfile is not None
+        assert change_install.tmp_path is None
+
+        npath = change_install.pack.path / nfile.name
+        npath.write_text(EXPECT_CONTENT, encoding='utf-8')
+
+    assert_post_conditions(change_install.pack, change_install.new_file)
+
+
+def test_change_mark_explicit(change_explicit):
+    """Assert handling of explicit mark."""
+
+    EXPECT_CONTENT = change_explicit.old_path.read_text(encoding='utf-8')
+
+    def assert_pre_conditions(mp: pack.ModPack, file: File):
+        path = mp.path / file.name
+        assert file.mod.id in mp.dependencies
+        assert file.mod.id not in mp.mods
+        assert path.exists()
+        assert path.read_text(encoding='utf-8') == EXPECT_CONTENT
+
+    def assert_post_conditions(mp: pack.ModPack, file: File):
+        path = mp.path / file.name
+        assert file.mod.id not in mp.dependencies
+        assert file.mod.id in mp.mods
+        assert path.exists()
+        assert path.read_text(encoding='utf-8') == EXPECT_CONTENT
+
+    assert_pre_conditions(change_explicit.pack, change_explicit.old_file)
+
+    with pytest.raises(SimulatedException), change_explicit as nfile:
+        assert nfile is None
+
+        raise SimulatedException
+
+    assert_pre_conditions(change_explicit.pack, change_explicit.old_file)
+
+    with change_explicit as nfile:
+        assert nfile is None
+
+    assert_post_conditions(change_explicit.pack, change_explicit.new_file)
+
+
+def test_change_upgrade(change_upgrade):
+    """Assert handling of upgrade."""
+
+    EXPECT_OLD_CONTENT = change_upgrade.old_path.read_text(encoding='utf-8')
+    EXPECT_NEW_CONTENT = 'MOD:UPGRADE\n'
+
+    def assert_pre_conditions(mp: pack.ModPack, ofile: File, nfile: File):
+        opath, npath = map(mp.path.joinpath, (ofile.name, nfile.name))
+
+        assert ofile.mod.id == nfile.mod.id
+        assert mp.mods[ofile.mod.id].id == ofile.id
+        assert mp.mods[nfile.mod.id].id != nfile.id
+
+        assert opath.exists()
+        assert opath.read_text(encoding='utf-8') == EXPECT_OLD_CONTENT
+        assert not npath.exists()
+
+    def assert_post_conditions(mp: pack.ModPack, ofile: File, nfile: File):
+        opath, npath = map(mp.path.joinpath, (ofile.name, nfile.name))
+
+        assert ofile.mod.id == nfile.mod.id
+        assert mp.mods[ofile.mod.id].id != ofile.id
+        assert mp.mods[nfile.mod.id].id == nfile.id
+
+        assert not opath.exists()
+        assert npath.exists()
+        assert npath.read_text(encoding='utf-8') == EXPECT_NEW_CONTENT
+
+    assert_pre_conditions(change_upgrade.pack, change_upgrade.old_file, change_upgrade.new_file)
+
+    with pytest.raises(SimulatedException), change_upgrade as nfile:
+        assert nfile is not None
+        assert change_upgrade.tmp_path.exists()
+
+        npath = change_upgrade.pack.path / nfile.name
+        npath.write_text(EXPECT_NEW_CONTENT, encoding='utf-8')
+
+        raise SimulatedException()
+
+    assert_pre_conditions(change_upgrade.pack, change_upgrade.old_file, change_upgrade.new_file)
+
+    with change_upgrade as nfile:
+        assert nfile is not None
+        assert change_upgrade.tmp_path.exists()
+
+        npath = change_upgrade.pack.path / nfile.name
+        npath.write_text(EXPECT_NEW_CONTENT, encoding='utf-8')
+
+    assert_post_conditions(change_upgrade.pack, change_upgrade.old_file, change_upgrade.new_file)
+
+
+def test_change_remove(change_remove):
+    """Assert handling of removal."""
+
+    EXPECT_CONTENT = change_remove.old_path.read_text(encoding='utf-8')
+
+    def assert_pre_conditions(mp: pack.ModPack, file: File):
+        path = mp.path / file.name
+
+        assert file.mod.id in mp.mods
+        assert path.exists()
+        assert path.read_text(encoding='utf-8') == EXPECT_CONTENT
+
+    def assert_post_conditions(mp: pack.ModPack, file: File):
+        path = mp.path / file.name
+
+        assert file.mod.id not in mp.mods
+        assert not path.exists()
+
+    assert_params = change_remove.pack, change_remove.old_file
+
+    assert_pre_conditions(*assert_params)
+
+    with pytest.raises(SimulatedException), change_remove as nfile:
+        assert nfile is None
+        assert change_remove.tmp_path.exists()
+
+        raise SimulatedException()
+
+    assert_pre_conditions(*assert_params)
+
+    with change_remove as nfile:
+        assert nfile is None
+        assert change_remove.tmp_path.exists()
+
+    assert_post_conditions(*assert_params)
+
+
+def test_change_helper_installation(change_install, minimal_pack, tinkers_construct_file):
+    """Install helper generates expected change."""
+
+    nchange = pack.FileChange.installation(
+        minimal_pack,
+        where=minimal_pack.mods,
+        file=tinkers_construct_file,
+    )
+
+    assert nchange == change_install
+
+
+@pytest.mark.parametrize('helper,change,pack,file', [
+    (
+        pack.FileChange.explicit,
+        lazy('change_explicit'),
+        lazy('valid_pack_with_file_contents'),
+        lazy('mantle_file'),
+    ),
+    (
+        pack.FileChange.upgrade,
+        lazy('change_upgrade'),
+        lazy('valid_pack_with_file_contents'),
+        lazy('tinkers_update'),
+    ),
+    (
+        pack.FileChange.removal,
+        lazy('change_remove'),
+        lazy('valid_pack_with_file_contents'),
+        lazy('tinkers_construct_file'),
+    ),
+])
+def test_change_creation_helper(helper, change, pack, file):
+    """Other helpers generate expected changes."""
+
+    nchange = helper(mp=pack, file=file)
+    assert nchange == change
+
+
 # # YAML validation, loading and dumping
 
 @pytest.mark.parametrize('yaml_stream,expected_status', [
@@ -198,7 +505,7 @@ def test_modpack_load_success(yaml_stream, expected_pack):
 def test_modpack_load_failure(yaml_stream):
     """The loading failure is properly reported."""
 
-    with pytest.raises(pack.ValidationError):
+    with pytest.raises(exceptions.InvalidStream):
         pack.ModPack.load(yaml_stream)
 
 
@@ -218,6 +525,30 @@ def test_modpack_roundtrip(modpack):
     restored = pack.ModPack.load(iostream)
 
     assert restored == modpack
+
+
+def test_modpack_fetch(minimal_pack, tinkers_construct_file):
+    """Does the File.fetch fetches the file correctly?"""
+
+    minimal_pack.path /= 'files'
+    session = requests.Session()
+    file = tinkers_construct_file
+
+    with betamax.Betamax(session).use_cassette('file-fetch'):
+        with pytest.raises(OSError):
+            minimal_pack.fetch(file, session=session)
+
+        minimal_pack.path.mkdir()
+        minimal_pack.fetch(file, session=session)
+
+        filepath = minimal_pack.path / file.name
+        assert filepath.is_file()
+        assert filepath.stat().st_mtime == file.date.timestamp()
+
+    with responses.RequestsMock() as rsps:
+        minimal_pack.fetch(file, session=session)
+
+        assert len(rsps.calls) == 0
 
 
 # # Dependency resolution tests
