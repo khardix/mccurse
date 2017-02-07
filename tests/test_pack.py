@@ -551,6 +551,23 @@ def test_modpack_fetch(minimal_pack, tinkers_construct_file):
         assert len(rsps.calls) == 0
 
 
+def test_modpack_filter_obsoletes(
+    valid_pack,
+    tinkers_construct_file,
+    tinkers_update,
+    mantle_file
+):
+    """Test filtering of obsolete files."""
+
+    older = deepcopy(mantle_file)
+    older.date -= timedelta(hours=1)
+
+    INPUT = [older, tinkers_construct_file, tinkers_update, mantle_file]
+    EXPECT = [tinkers_update]
+
+    assert list(valid_pack.filter_obsoletes(INPUT)) == EXPECT
+
+
 # # Dependency resolution tests
 
 def test_resolve_multiple(multiple_dependency):
