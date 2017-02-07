@@ -11,6 +11,7 @@ import cerberus
 import pytest
 import requests
 import responses
+from pytest import lazy_fixture as lazy
 
 from mccurse import pack, exceptions
 from mccurse.addon import Release, File, Mod
@@ -427,6 +428,45 @@ def test_change_remove(change_remove):
         assert change_remove.tmp_path.exists()
 
     assert_post_conditions(*assert_params)
+
+
+def test_change_helper_installation(change_install, minimal_pack, tinkers_construct_file):
+    """Install helper generates expected change."""
+
+    nchange = pack.FileChange.installation(
+        minimal_pack,
+        where=minimal_pack.mods,
+        file=tinkers_construct_file,
+    )
+
+    assert nchange == change_install
+
+
+@pytest.mark.parametrize('helper,change,pack,file', [
+    (
+        pack.FileChange.explicit,
+        lazy('change_explicit'),
+        lazy('valid_pack_with_file_contents'),
+        lazy('mantle_file'),
+    ),
+    (
+        pack.FileChange.upgrade,
+        lazy('change_upgrade'),
+        lazy('valid_pack_with_file_contents'),
+        lazy('tinkers_update'),
+    ),
+    (
+        pack.FileChange.removal,
+        lazy('change_remove'),
+        lazy('valid_pack_with_file_contents'),
+        lazy('tinkers_construct_file'),
+    ),
+])
+def test_change_creation_helper(helper, change, pack, file):
+    """Other helpers generate expected changes."""
+
+    nchange = helper(mp=pack, file=file)
+    assert nchange == change
 
 
 # # YAML validation, loading and dumping

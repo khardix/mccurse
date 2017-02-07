@@ -210,6 +210,108 @@ class FileChange:
         elif not self.__valid_destination:
             raise TypeError('Invalid FileChange: destination')
 
+    # Creation helpers
+
+    @classmethod
+    def installation(
+        cls: Type['FileChange'],
+        mp: ModPack,
+        where: OrderedDict,
+        file: File
+    ) -> 'FileChange':
+        """Create new change for installation.
+
+        Keyword arguments:
+            mp: The ModPack to install to.
+            where: Where in the ModPack to install (mods or dependencies).
+            file: The file to install.
+
+        Returns:
+            Installation FileChange.
+        """
+
+        return cls(mp, source=None, old_file=None, destination=where, new_file=file)
+
+    @classmethod
+    def explicit(
+        cls: Type['FileChange'],
+        mp: ModPack,
+        file: File
+    ) -> 'FileChange':
+        """Create new change for marking dependency as explicitly installed.
+
+        Keyword arguments:
+            mp: Which ModPack to modify.
+            file: The dependency to mark as mod.
+
+        Returns:
+            Explicit mark FileChange.
+        """
+
+        return cls(
+            pack=mp,
+            source=mp.dependencies, old_file=file,
+            destination=mp.mods, new_file=file,
+        )
+
+    @classmethod
+    def upgrade(
+        cls: Type['FileChange'],
+        mp: ModPack,
+        file: File
+    ) -> 'FileChange':
+        """Create new change for upgrading a file.
+
+        Keyword arguments:
+            mp: Which ModPack to modify.
+            file: The new upgrade file.
+
+        Returns:
+            Upgrade FileChange.
+
+        Raises:
+            KeyError: No older version of the upgrade was found.
+        """
+
+        where = next(filter(lambda d: file.mod.id in d, (mp.mods, mp.dependencies)), None)
+        if where is None:
+            raise KeyError('No old file for upgrade: {file.mod!r}'.format_map(locals()))
+
+        return cls(
+            pack=mp,
+            source=where, old_file=where[file.mod.id],
+            destination=where, new_file=file,
+        )
+
+    @classmethod
+    def removal(
+        cls: Type['FileChange'],
+        mp: ModPack,
+        file: File
+    ) -> 'FileChange':
+        """Create a new change for removing a file.
+
+        Keyword arguments:
+            mp: Which ModPack to modify.
+            file: The file to remove.
+
+        Returns:
+            Remove FileChange.
+
+        Raises:
+            KeyError: File was not found in ModPack.
+        """
+
+        where = next(filter(lambda d: file.mod.id in d, (mp.mods, mp.dependencies)), None)
+        if where is None or where[file.mod.id].id != file.id:
+            raise KeyError('Removed file not found: {file.id}: {file.name!s}'.format_map(locals()))
+
+        return cls(
+            pack=mp,
+            source=where, old_file=file,
+            destination=None, new_file=None,
+        )
+
     # Path properties
 
     @property
