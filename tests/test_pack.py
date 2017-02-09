@@ -15,7 +15,7 @@ import responses
 from pytest import lazy_fixture as lazy
 
 from mccurse import pack, exceptions
-from mccurse.addon import File
+from mccurse.addon import File, Release
 from mccurse.curse import Game
 from mccurse.util import yaml
 
@@ -564,3 +564,26 @@ def test_modpack_apply(
     tinkers_path = mp.path / tinkers_update.name
 
     assert mantle_path.exists() and tinkers_path.exists()
+
+
+def test_modpack_install(minimal_pack, minecraft, tinkers_construct, available_tinkers_tree):
+    """Test proper installation changes."""
+
+    # Expect change: file mod id, destination
+    EXPECT = [
+        (74072, minimal_pack.mods),  # Tinkers Construct
+        (74924, minimal_pack.dependencies),  # Mantle
+    ]
+
+    session = requests.Session()
+    minimal_pack.game = minecraft
+
+    with available_tinkers_tree:
+        changes = minimal_pack.install_changes(tinkers_construct, Release.Release, session)
+
+    assert len(changes) == 2
+    for change, expectation in zip(changes, EXPECT):
+        mod_id, target = expectation
+
+        assert change.new_file.mod.id == mod_id
+        assert change.destination is target

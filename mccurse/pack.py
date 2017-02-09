@@ -14,7 +14,7 @@ from attr import validators as vld
 from . import _, log, exceptions
 from .addon import File, Mod, Release
 from .curse import Game
-from .proxy import latest, resolve
+from .proxy import latest_file_tree, resolve
 from .util import yaml, cerberus as crb, default_new_session
 
 
@@ -197,6 +197,57 @@ class ModPack:
                 # Change is asking for new file; fetch it
                 log.info(_('Downloading {0.name}').format(nfile))
                 self.fetch(nfile, session=session)
+
+    def install_changes(
+        self: 'ModPack',
+        mod: Mod,
+        min_release: Release,
+        session: requests.Session
+    ) -> Sequence['FileChange']:
+        """Generate all changes necessary for mod installation.
+
+        Keyword arguments:
+            mod: The mod to install.
+            min_release: Minimal release type to consider for installation.
+            session: Authorized requests.Session to use for fetching
+                available file information.
+
+        Returns:
+            File changes necessary for successful mod installation.
+
+        Raises:
+            AlreadyInstalled: The requested mod is already installed.
+            NoFilesAvailable: There are no files available for mod-pack's
+                version of the game for the specified mod.
+        """
+
+        # Do not install already installed mod
+        if mod.id in self.mods:
+            raise exceptions.AlreadyInstalled(mod.name)
+        # On dependency, just mark as explicitly installed
+        elif mod.id in self.dependencies:
+            return [FileChange.explicit(self, self.dependencies[mod.id])]
+
+        # Brand new mod to install – resolve full tree
+        files = latest_file_tree(self.game, mod, min_release, session=session)
+        if not files:
+            raise exceptions.NoFileFound(mod.name)
+
+        # Filter out obsolete files
+        files = self.filter_obsoletes(files)
+
+        # Install file for requested mod into mods
+        changes = [FileChange.installation(self, self.mods, next(files))]
+        # Install or upgrade dependencies
+        for dependency in files:
+            if dependency.mod.id in self.installed:
+                changes.append(FileChange.upgrade(self, dependency))
+            else:
+                changes.append(
+                    FileChange.installation(self, self.dependencies, dependency)
+                )
+
+        return changes
 
 
 @attr.s(slots=True)
