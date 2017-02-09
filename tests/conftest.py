@@ -3,6 +3,7 @@
 
 import os
 from datetime import datetime, timezone
+from itertools import chain
 from pathlib import Path
 
 import betamax
@@ -295,8 +296,14 @@ def available_tinkers_tree(tinkers_construct, mantle_file) -> responses.Requests
         },
     }
 
-    requests_mock = responses.RequestsMock()
+    requests_mock = responses.RequestsMock(assert_all_requests_are_fired=False)
     for url, jsn in pool.items():
         requests_mock.add(responses.GET, url, json=jsn)
+
+    # Add dummy file contents
+    for file in chain.from_iterable(v['files'] for v in pool.values()):
+        url = file['download_url']
+        content = url.split('/')[-1].encode('utf-8')
+        requests_mock.add(responses.GET, url, body=content)
 
     return requests_mock

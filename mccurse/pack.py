@@ -245,6 +245,28 @@ class ModPack:
 
         return changes
 
+    def install(
+        self: 'ModPack',
+        mod: Mod,
+        min_release: Release,
+        session: requests.Session
+    ) -> None:
+        """Install specified mod into the mod-pack.
+
+        Keyword arguments:
+            mod: The mod to install.
+            min_release: Minimal release type to consider for installation.
+            session: Authorized requests.Session to use for fetching
+                available file information.
+
+        Raises:
+            AlreadyInstalled: The requested mod is already installed.
+            NoFilesAvailable: There are no files available for mod-pack's
+                version of the game for the specified mod.
+        """
+
+        return self.apply(self.install_changes(mod, min_release, session))
+
 
 @attr.s(slots=True)
 class FileChange:

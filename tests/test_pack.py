@@ -576,7 +576,12 @@ def test_modpack_apply(
     assert mantle_path.exists() and tinkers_path.exists()
 
 
-def test_modpack_install(minimal_pack, minecraft, tinkers_construct, available_tinkers_tree):
+def test_modpack_install_changes(
+    minimal_pack,
+    minecraft,
+    tinkers_construct,
+    available_tinkers_tree
+):
     """Test proper installation changes."""
 
     # Expect change: file mod id, destination
@@ -597,3 +602,24 @@ def test_modpack_install(minimal_pack, minecraft, tinkers_construct, available_t
 
         assert change.new_file.mod.id == mod_id
         assert change.destination is target
+
+
+def test_modpack_install(
+    minimal_pack,
+    minecraft,
+    tinkers_construct,
+    available_tinkers_tree
+):
+    """Test proper installation."""
+
+    session = requests.Session()
+    minimal_pack.game = minecraft
+
+    assert not minimal_pack.mods
+    assert not minimal_pack.dependencies
+
+    with available_tinkers_tree:
+        minimal_pack.install(tinkers_construct, Release.Release, session)
+
+    assert tinkers_construct.id in minimal_pack.mods
+    assert minimal_pack.dependencies
