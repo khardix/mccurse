@@ -139,14 +139,10 @@ class ModPack:
             Original files without the obsoletes.
         """
 
-        installed = ChainMap(self.mods, self.dependencies)
-
         for file in files:
-            if file.mod.id not in installed:
-                yield file
+            current = self.installed.get(file.mod.id, None)
 
-            current = installed[file.mod.id]
-            if file.date > current.date:
+            if current is None or current.date < file.date:
                 yield file
             else:
                 continue

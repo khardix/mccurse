@@ -504,6 +504,16 @@ def test_modpack_filter_obsoletes(
     assert set(valid_pack.filter_obsoletes(INPUT)) == EXPECT
 
 
+def test_modpack_filter_no_obsoletes(
+    minimal_pack, tinkers_construct_file, mantle_file
+):
+    """Obsolete filtering on empty pack returns exactly the input."""
+
+    INPUT = [tinkers_construct_file, mantle_file]
+
+    assert list(minimal_pack.filter_obsoletes(INPUT)) == INPUT
+
+
 def test_modpack_orphans(valid_pack, mantle_file):
     """Test if the orphan is found properly"""
 
