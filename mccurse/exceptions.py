@@ -20,15 +20,19 @@ class UserReport(click.ClickException):
     Override format_message() method to show customized text.
     """
 
+    #: Message header
+    header = _('Error')
+
+    #: Message color
+    color = 'red'
+
     # Color the output
     def show(self, file=None):
         if file is None:
             file = sys.stderr
 
-        header = click.style(_('Error:'), fg='red')
         msg = self.format_message()
-
-        click.echo(' '.join((header, msg)), file=file)
+        click.secho(': '.join((self.header, msg)), file=file, fg=self.color)
 
 
 class InvalidStream(UserReport):
@@ -50,3 +54,18 @@ class InvalidStream(UserReport):
             fmt.append(yaml.dump(self.errors))
 
         return ':\n'.join(fmt)
+
+
+class AlreadyInstalled(UserReport):
+    """User requested installation of already installed mod."""
+
+    exit_code = 0
+
+    header = _('Mod is already installed')
+    color = 'green'
+
+
+class NoFileFound(UserReport):
+    """No available file found for specified mod and game version."""
+
+    header = _('No available file found for mod')
