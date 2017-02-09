@@ -11,12 +11,11 @@ import cerberus
 import requests
 from attr import validators as vld
 
-from . import _, log
+from . import _, log, exceptions
 from .addon import File, Mod, Release
-from .exceptions import InvalidStream
 from .curse import Game
 from .proxy import latest, resolve
-from .util import yaml, cerberus as crb, default_new_session, lazydict
+from .util import yaml, cerberus as crb, default_new_session
 
 
 # Pack structure for validation
@@ -70,7 +69,7 @@ class ModPack:
 
         if not validator.validate(yaml.load(stream)):
             msg = _('Modpack file contains invalid data'), validator.errors
-            raise InvalidStream(*msg)
+            raise exceptions.InvalidStream(*msg)
         else:
             data = validator.document
             return cls(
