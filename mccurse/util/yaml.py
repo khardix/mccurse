@@ -1,6 +1,7 @@
 """PyYAML adaptations and tweaks"""
 
 import re
+from collections import OrderedDict
 from collections.abc import Callable
 from datetime import datetime
 from enum import Enum
@@ -20,6 +21,7 @@ except ImportError:
 
 TIMESTAMP_TAG = 'tag:yaml.org,2002:timestamp'
 STR_TAG = 'tag:yaml.org,2002:str'
+OMAP_TAG = 'tag:yaml.org,2002:omap'
 
 
 # Force deep loading of dictionaries
@@ -47,6 +49,21 @@ def path_representer(dumper: Dumper, path: Path) -> yaml.Node:
 Dumper.add_representer(Path, path_representer)
 Dumper.add_representer(PosixPath, path_representer)
 Dumper.add_representer(WindowsPath, path_representer)
+
+
+# Serialize OrderedDict as standard yaml tag !!omap
+# https://stackoverflow.com/questions/5121931/in-python-how-can-you-load-yaml-mappings-as-ordereddicts#21912744
+def ordered_dict_representer(dumper: Dumper, omap: OrderedDict) -> yaml.Node:
+    """Custom representer for OrderedDict in YAML."""
+    return dumper.represent_mapping(OMAP_TAG, omap.items())
+Dumper.add_representer(OrderedDict, ordered_dict_representer)
+
+
+def ordered_dict_constructor(loader: Loader, node: yaml.Node) -> OrderedDict:
+    """Custom constructor for OrderedDict objects from YAML."""
+    loader.flatten_mapping(node)
+    return OrderedDict(loader.construct_pairs(node))
+Loader.add_constructor(OMAP_TAG, ordered_dict_constructor)
 
 
 # Decorator for nicer custom tags
