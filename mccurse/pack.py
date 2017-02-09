@@ -50,6 +50,11 @@ class ModPack:
         default=attr.Factory(OrderedDict),
     )
 
+    @property
+    def installed(self):
+        """Provides a view into all installed mods (including dependencies)."""
+        return ChainMap(self.mods, self.dependencies)
+
     @classmethod
     def load(cls: Type['ModPack'], stream: TextIO) -> 'ModPack':
         """Load mod-pack data from a file stream.
@@ -154,11 +159,9 @@ class ModPack:
             Orphaned files.
         """
 
-        # Construct full dependency chain
-        available = ChainMap(self.mods, self.dependencies)
         needed = {}
         for file in self.mods.values():
-            needed.update(resolve(file, pool=available))
+            needed.update(resolve(file, pool=self.installed))
 
         # Filter unneeded dependencies
         yield from (
