@@ -1,6 +1,8 @@
 """Tests for the proxy submodule"""
 
+from datetime import datetime, timezone
 from io import StringIO
+from typing import Sequence, Tuple
 
 import attr
 import pytest
@@ -8,6 +10,7 @@ import requests
 import responses
 
 from mccurse import addon, proxy, exceptions
+from mccurse.addon import File, Mod, Release
 from mccurse.util import yaml
 
 
@@ -21,86 +24,56 @@ def dummy_auth() -> proxy.Authorization:
     )
 
 
+# # Dependency fixtures and helpers
+
+def makefile(name: str, mod_id: int, *deps: Sequence[int]):
+    """Shortcut for creating instances of File."""
+
+    TIMESTAMP = datetime.now(tz=timezone.utc)
+    RELEASE = Release.Release
+
+    return File(
+        mod=Mod(name=name.upper(), id=mod_id, summary=name),
+        id=(42 + mod_id),
+        name='{}.jar'.format(name),
+        date=TIMESTAMP,
+        release=RELEASE,
+        url='http://example.com/{}.jar'.format(name),
+        dependencies=list(deps),
+    )
+
+
 @pytest.fixture
-def available_files() -> dict:
-    """Test set of available files.
+def multiple_dependency() -> Tuple[File, dict, Sequence]:
+    """Dependency graph with shared dependencies."""
 
-    Ordered by date ascending: 2349845[A], 2353329[R], 2366245[B]
-    """
+    root = makefile('a', 1, 2, 3)
+    deps = {
+        1: root,
+        2: makefile('b', 2, 3, 4),
+        3: makefile('c', 3),
+        4: makefile('d', 4, 3),
+        # Extra available, should not be included
+        5: makefile('e', 5, 3),
+    }
+    order = [1, 2, 3, 4]
 
-    jsn = {"files": [
-        {
-            "alternate_file_id": 0,
-            "file_name": "TConstruct-1.10.2-2.6.1.jar",
-            "is_available": True,
-            "dependencies": [
-                {
-                    "add_on_id": 74924,
-                    "type": "Required"
-                }
-            ],
-            "file_date": "2016-12-07T18:35:45",
-            "file_status": "SemiNormal",
-            "file_name_on_disk": "TConstruct-1.10.2-2.6.1.jar",
-            "id": 2353329,
-            "download_url":
-                "https://addons.cursecdn.com/files/2353/329/TConstruct-1.10.2-2.6.1.jar",
-            "package_fingerprint": 1768070072,
-            "is_alternate": False,
-            "release_type": "Release",
-            "game_version": [
-                "1.10.2"
-            ]
-        },
-        {
-            "alternate_file_id": 0,
-            "file_name": "TConstruct-1.10.2-2.6.2.jar",
-            "is_available": True,
-            "dependencies": [
-                {
-                    "add_on_id": 74924,
-                    "type": "Required"
-                }
-            ],
-            "file_date": "2017-01-09T19:41:50",
-            "file_status": "SemiNormal",
-            "file_name_on_disk": "TConstruct-1.10.2-2.6.2.jar",
-            "id": 2366245,
-            "download_url":
-                "https://addons.cursecdn.com/files/2366/245/TConstruct-1.10.2-2.6.2.jar",
-            "package_fingerprint": 1770865161,
-            "is_alternate": False,
-            "release_type": "Beta",
-            "game_version": [
-                "1.10.2"
-            ]
-        },
-        {
-            "alternate_file_id": 0,
-            "file_name": "TConstruct-1.10.2-2.6.0.jar",
-            "is_available": True,
-            "dependencies": [
-                {
-                    "add_on_id": 74924,
-                    "type": "Required"
-                }
-            ],
-            "file_date": "2016-11-27T16:25:15",
-            "file_status": "SemiNormal",
-            "file_name_on_disk": "TConstruct-1.10.2-2.6.0.jar",
-            "id": 2349845,
-            "download_url":
-                "https://addons.cursecdn.com/files/2349/845/TConstruct-1.10.2-2.6.0.jar",
-            "package_fingerprint": 1097160304,
-            "is_alternate": False,
-            "release_type": "Alpha",
-            "game_version": [
-                "1.10.2"
-            ]
-        },
-    ]}
+    return root, deps, order
 
-    return jsn
+
+@pytest.fixture
+def circular_dependency() -> Tuple[File, dict, Sequence]:
+    """Dependency graph with a circle."""
+
+    root = makefile('a', 1, 2)
+    deps = {
+        1: root,
+        2: makefile('b', 2, 3),
+        3: makefile('c', 3, 1),
+    }
+    order = [1, 2, 3]
+
+    return root, deps, order
 
 
 # Authorization tests
@@ -168,6 +141,46 @@ def test_auth_store(dummy_auth):
 
 # Function tests
 
+# # Dependency resolution tests
+
+def test_resolve_multiple(multiple_dependency):
+    """Resolving works right with shared dependencies?"""
+
+    root, pool, EXPECT_ORDER = multiple_dependency
+
+    resolution = proxy.resolve(root, pool)
+
+    assert len(resolution) == len(EXPECT_ORDER)
+    assert list(resolution.keys()) == EXPECT_ORDER
+    assert root.mod.id == next(iter(resolution.values())).mod.id
+
+    required = set(root.dependencies)
+    for d in resolution.values():
+        required.update(d.dependencies)
+
+    assert all(d in resolution for d in required)
+
+
+def test_resolve_cycle(circular_dependency):
+    """Resolving works right with circular dependencies?"""
+
+    root, pool, EXPECT_ORDER = circular_dependency
+
+    resolution = proxy.resolve(root, pool)
+
+    assert len(resolution) == len(EXPECT_ORDER)
+    assert list(resolution.keys()) == EXPECT_ORDER
+    assert root.mod.id == next(iter(resolution.values())).mod.id
+
+    required = set(root.dependencies)
+    for d in resolution.values():
+        required.update(d.dependencies)
+
+    assert all(d in resolution for d in required)
+
+
+# # Latest function tests
+
 @responses.activate
 def test_latest_files(minecraft, tinkers_construct, available_files):
     """Does the latest function pick the right files?"""
@@ -190,3 +203,15 @@ def test_latest_errors(minecraft, tinkers_construct):
 
     with pytest.raises(requests.HTTPError):
         proxy.latest(minecraft, tinkers_construct, addon.Release.Release)
+
+
+def test_latest_tree(minecraft, tinkers_construct, available_tinkers_tree):
+    """Does the tree resolution works as expected?"""
+
+    with available_tinkers_tree as rsps:
+        resolution = proxy.latest_file_tree(minecraft, tinkers_construct, addon.Release.Release)
+
+        assert len(rsps.calls) == 2
+        assert len(resolution) == 2
+        assert set(f.id for f in resolution) == {2366244, 2353329}
+        assert next(iter(resolution)).mod.id == tinkers_construct.id

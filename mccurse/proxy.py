@@ -1,7 +1,8 @@
 """Interface to the Curse.RestProxy service."""
 
+from collections import OrderedDict
 from operator import attrgetter
-from typing import TextIO, Optional
+from typing import TextIO, Optional, Mapping, Sequence
 
 import attr
 import requests
@@ -12,7 +13,7 @@ from . import _
 from .addon import File, Mod, Release
 from .exceptions import InvalidStream
 from .curse import Game
-from .util import default_new_session, yaml
+from .util import default_new_session, yaml, lazydict
 
 
 HOME_URL = 'https://curse-rest-proxy.azurewebsites.net/api'
@@ -105,6 +106,39 @@ class Authorization(AuthBase):
         yaml.dump(attr.asdict(self), file)
 
 
+def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:
+    """Fully resolve dependecies of a root :class:`addon.File`.
+
+    Keyword arguments:
+        root: The `addon.File` to resolve dependencies for.
+        pool: Available potential dependencies. Mapping from mod identification
+            to corresponding file.
+
+    Returns:
+        Ordered mapping of all the dependencies, in breadth-first order,
+        including the root. The root is always first in order.
+    """
+
+    # Result – resolved dependencies
+    resolved = OrderedDict()
+    resolved[root.mod.id] = root
+    # Which mods needs to be checked
+    queue = list(root.dependencies)
+
+    for dep_id in queue:
+        if dep_id in resolved:
+            continue
+
+        # Get the dependency
+        dependency = pool[dep_id]
+        # Mark its dependencies for processing
+        queue.extend(dependency.dependencies)
+        # Add the dependency to chain
+        resolved[dep_id] = dependency
+
+    return resolved
+
+
 def latest(
     game: Game,
     mod: Mod,
@@ -145,3 +179,39 @@ def latest(
     candidates = iter(sorted(stable, key=attrgetter('date'), reverse=True))
 
     return next(candidates, None)
+
+
+def latest_file_tree(
+    game: Game,
+    mod: Mod,
+    min_release: Release,
+    *,
+    session: requests.Session = None
+) -> Sequence[File]:
+    """Load latest file and all its dependencies for a mod from RestProxy.
+
+    Keyword Arguments:
+        game: Game (version) to get the files for.
+        mod: The main mod to get files for.
+        min_release: Minimal release type to consider.
+        session: :class: `requests.Session` to use [default: new session].
+
+    Returns:
+        Sequence of files (possibly empty). If it is not empty, it contains
+        latest files for requested mod and all its dependencies, with
+        file belonging to the requested mod being first.
+
+    Raises:
+        requests.HTTPError: On HTTP-related errors.
+        sqlalchemy.NoResultsFound: Some necessary mod was not found in game database.
+    """
+
+    main = latest(game, mod, min_release, session=session)
+    pool = lazydict(lambda m_id: latest(
+        game=game,
+        mod=Mod.with_id(game.database.session(), m_id),
+        min_release=min_release,
+        session=session,
+    ))
+
+    return [f for f in resolve(main, pool).values() if f is not None]

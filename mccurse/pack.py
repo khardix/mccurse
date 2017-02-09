@@ -1,20 +1,20 @@
 """Mod-pack file format interface."""
 
 import os
-from contextlib import suppress
+from contextlib import suppress, ExitStack
 from collections import OrderedDict, ChainMap
 from pathlib import Path
-from typing import Mapping, TextIO, Type, Generator, Iterable, Optional
+from typing import TextIO, Type, Generator, Iterable, Optional, Sequence
 
 import attr
 import cerberus
 import requests
 from attr import validators as vld
 
-from . import _
-from .addon import File
-from .exceptions import InvalidStream
+from . import _, log, exceptions
+from .addon import File, Mod, Release
 from .curse import Game
+from .proxy import latest_file_tree, resolve
 from .util import yaml, cerberus as crb, default_new_session
 
 
@@ -34,39 +34,6 @@ cerberus.schema_registry.add('pack', {
 })
 
 
-def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:
-    """Fully resolve dependecies of a root :class:`addon.File`.
-
-    Keyword arguments:
-        root: The `addon.File` to resolve dependencies for.
-        pool: Available potential dependencies. Mapping from mod identification
-            to corresponding file.
-
-    Returns:
-        Ordered mapping of all the dependencies, in breadth-first order,
-        including the root.
-    """
-
-    # Result – resolved dependencies
-    resolved = OrderedDict()
-    resolved[root.mod.id] = root
-    # Which mods needs to be checked
-    queue = list(root.dependencies)
-
-    for dep_id in queue:
-        if dep_id in resolved:
-            continue
-
-        # Get the dependency
-        dependency = pool[dep_id]
-        # Mark its dependencies for processing
-        queue.extend(dependency.dependencies)
-        # Add the dependency to chain
-        resolved[dep_id] = dependency
-
-    return resolved
-
-
 @attr.s(slots=True)
 class ModPack:
     """Interface to single mod-pack data."""
@@ -81,6 +48,11 @@ class ModPack:
         validator=vld.optional(vld.instance_of(OrderedDict)),
         default=attr.Factory(OrderedDict),
     )
+
+    @property
+    def installed(self):
+        """Provides a view into all installed mods (including dependencies)."""
+        return ChainMap(self.mods, self.dependencies)
 
     @classmethod
     def load(cls: Type['ModPack'], stream: TextIO) -> 'ModPack':
@@ -97,7 +69,7 @@ class ModPack:
 
         if not validator.validate(yaml.load(stream)):
             msg = _('Modpack file contains invalid data'), validator.errors
-            raise InvalidStream(*msg)
+            raise exceptions.InvalidStream(*msg)
         else:
             data = validator.document
             return cls(
@@ -167,14 +139,10 @@ class ModPack:
             Original files without the obsoletes.
         """
 
-        installed = ChainMap(self.mods, self.dependencies)
-
         for file in files:
-            if file.mod.id not in installed:
-                yield file
+            current = self.installed.get(file.mod.id, None)
 
-            current = installed[file.mod.id]
-            if file.date > current.date:
+            if current is None or current.date < file.date:
                 yield file
             else:
                 continue
@@ -186,17 +154,118 @@ class ModPack:
             Orphaned files.
         """
 
-        # Construct full dependency chain
-        available = ChainMap(self.mods, self.dependencies)
         needed = {}
         for file in self.mods.values():
-            needed.update(resolve(file, pool=available))
+            needed.update(resolve(file, pool=self.installed))
 
         # Filter unneeded dependencies
         yield from (
             file for m_id, file in self.dependencies.items()
             if m_id not in needed
         )
+
+    def apply(
+        self: 'ModPack',
+        changes: Sequence['FileChange'],
+        *,
+        session: requests.Session = None
+    ) -> None:
+        """Applies all provided changes.
+
+        Possible destructive operation, use with care.
+
+        Keyword arguments:
+            changes: The changes to be applied.
+            session: If there is a change which calls for a new file content,
+                use this session to download it.
+        """
+
+        session = default_new_session(session)
+
+        with ExitStack() as transaction:
+            for change in changes:
+                nfile = transaction.enter_context(change)
+
+                # Nothing more to do
+                if nfile is None:
+                    continue
+
+                # Change is asking for new file; fetch it
+                log.info(_('Downloading {0.name}').format(nfile))
+                self.fetch(nfile, session=session)
+
+    def install_changes(
+        self: 'ModPack',
+        mod: Mod,
+        min_release: Release,
+        session: requests.Session
+    ) -> Sequence['FileChange']:
+        """Generate all changes necessary for mod installation.
+
+        Keyword arguments:
+            mod: The mod to install.
+            min_release: Minimal release type to consider for installation.
+            session: Authorized requests.Session to use for fetching
+                available file information.
+
+        Returns:
+            File changes necessary for successful mod installation.
+
+        Raises:
+            AlreadyInstalled: The requested mod is already installed.
+            NoFilesAvailable: There are no files available for mod-pack's
+                version of the game for the specified mod.
+        """
+
+        # Do not install already installed mod
+        if mod.id in self.mods:
+            raise exceptions.AlreadyInstalled(mod.name)
+        # On dependency, just mark as explicitly installed
+        elif mod.id in self.dependencies:
+            return [FileChange.explicit(self, self.dependencies[mod.id])]
+
+        # Brand new mod to install – resolve full tree
+        files = latest_file_tree(self.game, mod, min_release, session=session)
+        if not files:
+            raise exceptions.NoFileFound(mod.name)
+
+        # Filter out obsolete files
+        files = self.filter_obsoletes(files)
+
+        # Install file for requested mod into mods
+        changes = [FileChange.installation(self, self.mods, next(files))]
+        # Install or upgrade dependencies
+        for dependency in files:
+            if dependency.mod.id in self.installed:
+                changes.append(FileChange.upgrade(self, dependency))
+            else:
+                changes.append(
+                    FileChange.installation(self, self.dependencies, dependency)
+                )
+
+        return changes
+
+    def install(
+        self: 'ModPack',
+        mod: Mod,
+        min_release: Release,
+        session: requests.Session
+    ) -> None:
+        """Install specified mod into the mod-pack.
+
+        Keyword arguments:
+            mod: The mod to install.
+            min_release: Minimal release type to consider for installation.
+            session: Authorized requests.Session to use for fetching
+                available file information.
+
+        Raises:
+            AlreadyInstalled: The requested mod is already installed.
+            NoFilesAvailable: There are no files available for mod-pack's
+                version of the game for the specified mod.
+        """
+
+        return self.apply(self.install_changes(mod, min_release, session))
 
 
 @attr.s(slots=True)

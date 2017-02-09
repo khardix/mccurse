@@ -1,11 +1,11 @@
 """Tests for the pack submodule"""
 
 from copy import deepcopy
-from datetime import datetime, timezone, timedelta
+from datetime import timedelta
 from itertools import repeat
 from io import StringIO
 from pathlib import Path
-from typing import Sequence, Tuple, Optional
+from typing import Optional
 
 import betamax
 import cerberus
@@ -15,9 +15,8 @@ import responses
 from pytest import lazy_fixture as lazy
 
 from mccurse import pack, exceptions
-from mccurse.addon import Release, File, Mod
+from mccurse.addon import File, Release
 from mccurse.curse import Game
-from mccurse.pack import resolve
 from mccurse.util import yaml
 
 
@@ -88,18 +87,6 @@ def change_explicit(valid_pack_with_file_contents) -> pack.FileChange:
         source=valid_pack_with_file_contents.dependencies, old_file=file,
         destination=valid_pack_with_file_contents.mods, new_file=file,
     )
-
-
-@pytest.fixture
-def tinkers_update(tinkers_construct_file) -> File:
-    """Updated file for tinkers construct."""
-
-    update = deepcopy(tinkers_construct_file)
-    update.id += 1
-    update.name = 'NEW-' + update.name
-    update.date += timedelta(days=1)
-
-    return update
 
 
 @pytest.fixture
@@ -190,58 +177,6 @@ def invalid_yaml(valid_pack) -> StringIO:
     }
 
     return StringIO(yaml.dump(structure))
-
-
-# # Dependency fixtures and helpers
-
-def makefile(name: str, mod_id: int, *deps: Sequence[int]):
-    """Shortcut for creating instances of File."""
-
-    TIMESTAMP = datetime.now(tz=timezone.utc)
-    RELEASE = Release.Release
-
-    return File(
-        mod=Mod(name=name.upper(), id=mod_id, summary=name),
-        id=(42 + mod_id),
-        name='{}.jar'.format(name),
-        date=TIMESTAMP,
-        release=RELEASE,
-        url='http://example.com/{}.jar'.format(name),
-        dependencies=list(deps),
-    )
-
-
-@pytest.fixture
-def multiple_dependency() -> Tuple[File, dict, Sequence]:
-    """Dependency graph with shared dependencies."""
-
-    root = makefile('a', 1, 2, 3)
-    deps = {
-        1: root,
-        2: makefile('b', 2, 3, 4),
-        3: makefile('c', 3),
-        4: makefile('d', 4, 3),
-        # Extra available, should not be included
-        5: makefile('e', 5, 3),
-    }
-    order = [1, 2, 3, 4]
-
-    return root, deps, order
-
-
-@pytest.fixture
-def circular_dependency() -> Tuple[File, dict, Sequence]:
-    """Dependency graph with a circle."""
-
-    root = makefile('a', 1, 2)
-    deps = {
-        1: root,
-        2: makefile('b', 2, 3),
-        3: makefile('c', 3, 1),
-    }
-    order = [1, 2, 3]
-
-    return root, deps, order
 
 
 # Tests
@@ -528,12 +463,12 @@ def test_modpack_roundtrip(modpack):
     assert restored == modpack
 
 
-def test_modpack_fetch(minimal_pack, tinkers_construct_file):
+def test_modpack_fetch(minimal_pack, tinkers_update):
     """Does the File.fetch fetches the file correctly?"""
 
     minimal_pack.path /= 'files'
     session = requests.Session()
-    file = tinkers_construct_file
+    file = tinkers_update
 
     with betamax.Betamax(session).use_cassette('file-fetch'):
         with pytest.raises(OSError):
@@ -569,6 +504,16 @@ def test_modpack_filter_obsoletes(
     assert set(valid_pack.filter_obsoletes(INPUT)) == EXPECT
 
 
+def test_modpack_filter_no_obsoletes(
+    minimal_pack, tinkers_construct_file, mantle_file
+):
+    """Obsolete filtering on empty pack returns exactly the input."""
+
+    INPUT = [tinkers_construct_file, mantle_file]
+
+    assert list(minimal_pack.filter_obsoletes(INPUT)) == INPUT
+
+
 def test_modpack_orphans(valid_pack, mantle_file):
     """Test if the orphan is found properly"""
 
@@ -591,37 +536,90 @@ def test_modpack_orphans(valid_pack, mantle_file):
     assert set(valid_pack.orphans()) == {orphan_parent, orphan_child}
 
 
-# # Dependency resolution tests
+def test_modpack_apply(
+        minimal_pack,
+        minecraft,
+        tinkers_construct_file,
+        mantle_file,
+        tinkers_update
+):
+    """Test proper application of change sequence."""
 
-def test_resolve_multiple(multiple_dependency):
-    """Resolving works right with shared dependencies?"""
+    session = requests.Session()
 
-    root, pool, EXPECT_ORDER = multiple_dependency
+    mp = minimal_pack
+    mp.game = minecraft
 
-    resolution = resolve(root, pool)
+    with betamax.Betamax(session).use_cassette('modpack-apply'):
+        changes_install = [
+            pack.FileChange.installation(mp, where=mp.dependencies, file=mantle_file),
+            pack.FileChange.installation(mp, where=mp.mods, file=tinkers_construct_file),
+        ]
+        minimal_pack.apply(changes_install, session=session)
 
-    assert len(resolution) == len(EXPECT_ORDER)
-    assert list(resolution.keys()) == EXPECT_ORDER
+        # Upgrade requires the mod to already exist in the mod-pack
+        changes_upgrade = [
+            pack.FileChange.explicit(mp, file=mantle_file),
+            pack.FileChange.upgrade(mp, file=tinkers_update),
+        ]
+        minimal_pack.apply(changes_upgrade, session=session)
 
-    required = set(root.dependencies)
-    for d in resolution.values():
-        required.update(d.dependencies)
+    assert not minimal_pack.dependencies
+    assert len(minimal_pack.mods) == 2
+    assert mantle_file.mod.id in minimal_pack.mods
+    assert tinkers_update.mod.id in minimal_pack.mods
+    assert minimal_pack.mods[tinkers_construct_file.mod.id] == tinkers_update
 
-    assert all(d in resolution for d in required)
+    mantle_path = mp.path / mantle_file.name
+    tinkers_path = mp.path / tinkers_update.name
+
+    assert mantle_path.exists() and tinkers_path.exists()
 
 
-def test_resolve_cycle(circular_dependency):
-    """Resolving works right with circular dependencies?"""
+def test_modpack_install_changes(
+    minimal_pack,
+    minecraft,
+    tinkers_construct,
+    available_tinkers_tree
+):
+    """Test proper installation changes."""
 
-    root, pool, EXPECT_ORDER = circular_dependency
+    # Expect change: file mod id, destination
+    EXPECT = [
+        (74072, minimal_pack.mods),  # Tinkers Construct
+        (74924, minimal_pack.dependencies),  # Mantle
+    ]
 
-    resolution = resolve(root, pool)
+    session = requests.Session()
+    minimal_pack.game = minecraft
 
-    assert len(resolution) == len(EXPECT_ORDER)
-    assert list(resolution.keys()) == EXPECT_ORDER
+    with available_tinkers_tree:
+        changes = minimal_pack.install_changes(tinkers_construct, Release.Release, session)
 
-    required = set(root.dependencies)
-    for d in resolution.values():
-        required.update(d.dependencies)
+    assert len(changes) == 2
+    for change, expectation in zip(changes, EXPECT):
+        mod_id, target = expectation
 
-    assert all(d in resolution for d in required)
+        assert change.new_file.mod.id == mod_id
+        assert change.destination is target
+
+
+def test_modpack_install(
+    minimal_pack,
+    minecraft,
+    tinkers_construct,
+    available_tinkers_tree
+):
+    """Test proper installation."""
+
+    session = requests.Session()
+    minimal_pack.game = minecraft
+
+    assert not minimal_pack.mods
+    assert not minimal_pack.dependencies
+
+    with available_tinkers_tree:
+        minimal_pack.install(tinkers_construct, Release.Release, session)
+
+    assert tinkers_construct.id in minimal_pack.mods
+    assert minimal_pack.dependencies

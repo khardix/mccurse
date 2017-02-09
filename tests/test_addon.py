@@ -82,6 +82,18 @@ def test_mod_find(filled_database):
         addon.Mod.find(session, 'nonsense')
 
 
+def test_mod_with_id(filled_database):
+    """Does the with_id find the correct mod?"""
+
+    session = SQLSession(bind=filled_database.engine)
+
+    assert addon.Mod.with_id(session, 42).name == 'tested'
+    assert addon.Mod.with_id(session, 45).name == 'tester'
+
+    with pytest.raises(addon.NoResultFound):
+        addon.Mod.with_id(session, 44)
+
+
 # Release tests
 
 def test_release():

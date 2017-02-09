@@ -121,6 +121,26 @@ class Mod(AddonBase):
 
         return query(connection).params(name='%{}%'.format(name)).one()
 
+    @classmethod
+    def with_id(cls, connection: SQLSession, id: int) -> 'Mod':
+        """Fetch mod with id from database.
+
+        Keyword arguments:
+            connection: Database connection to fetch from.
+            id: The id field of the mod to get.
+
+        Returns:
+            The requested mod.
+
+        Raises:
+            NoResultFound: Mod with specified id does not exist.
+        """
+
+        query = SQLBakery(lambda conn: conn.query(cls))
+        query += lambda q: q.filter(cls.id == bindparam('id'))
+
+        return query(connection).params(id=id).one()
+
 
 @yaml.tag('!release', pattern='^(Alpha|Beta|Release)$')
 @unique
