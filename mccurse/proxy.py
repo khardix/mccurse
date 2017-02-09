@@ -179,3 +179,37 @@ def latest(
     candidates = iter(sorted(stable, key=attrgetter('date'), reverse=True))
 
     return next(candidates, None)
+
+
+def latest_file_tree(
+    game: Game,
+    mod: Mod,
+    min_release: Release,
+    *,
+    session: requests.Session = None
+) -> Sequence[File]:
+    """Load latest file and all its dependencies for a mod from RestProxy.
+
+    Keyword Arguments:
+        game: Game (version) to get the files for.
+        mod: The main mod to get files for.
+        min_release: Minimal release type to consider.
+        session: :class: `requests.Session` to use [default: new session].
+
+    Returns:
+        Sequence of the latest available files (possibly empty).
+
+    Raises:
+        requests.HTTPError: On HTTP-related errors.
+        sqlalchemy.NoResultsFound: Some necessary mod was not found in game database.
+    """
+
+    main = latest(game, mod, min_release, session=session)
+    pool = lazydict(lambda m_id: latest(
+        game=game,
+        mod=Mod.with_id(game.database.session(), m_id),
+        min_release=min_release,
+        session=session,
+    ))
+
+    return [f for f in resolve(main, pool).values() if f is not None]

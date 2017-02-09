@@ -106,6 +106,106 @@ def available_files() -> dict:
     return jsn
 
 
+@pytest.fixture
+def available_tinkers_tree(tinkers_construct, mantle_file) -> dict:
+    """JSON for tree resolution."""
+
+    pool = {
+        proxy.HOME_URL + '/addon/{tinkers_construct.id}/files'.format_map(locals()): {
+            'files': [
+                {
+                    "release_type": "Release",
+                    "file_status": "SemiNormal",
+                    "game_version": [
+                        "1.10.2"
+                    ],
+                    "file_name_on_disk": "TConstruct-1.10.2-2.6.1.jar",
+                    "file_date": "2016-12-07T18:35:45",
+                    "download_url":
+                        "https://addons.cursecdn.com/files/2353/329/TConstruct-1.10.2-2.6.1.jar",
+                    "alternate_file_id": 0,
+                    "id": 2353329,
+                    "package_fingerprint": 1768070072,
+                    "is_available": True,
+                    "file_name": "TConstruct-1.10.2-2.6.1.jar",
+                    "is_alternate": False,
+                    "dependencies": [
+                        {
+                            "type": "Required",
+                            "add_on_id": 74924
+                        }
+                    ]
+                },
+                {
+                    "release_type": "Beta",
+                    "file_status": "SemiNormal",
+                    "game_version": [
+                        "1.10.2"
+                    ],
+                    "file_name_on_disk": "TConstruct-1.10.2-2.6.2.jar",
+                    "file_date": "2017-01-09T19:41:50",
+                    "download_url":
+                        "https://addons.cursecdn.com/files/2366/245/TConstruct-1.10.2-2.6.2.jar",
+                    "alternate_file_id": 0,
+                    "id": 2366245,
+                    "package_fingerprint": 1770865161,
+                    "is_available": True,
+                    "file_name": "TConstruct-1.10.2-2.6.2.jar",
+                    "is_alternate": False,
+                    "dependencies": [
+                        {
+                            "type": "Required",
+                            "add_on_id": 74924
+                        }
+                    ]
+                },
+            ]
+        },
+        proxy.HOME_URL + '/addon/{mantle_file.mod.id}/files'.format_map(locals()): {
+            'files': [
+                {
+                    "release_type": "Release",
+                    "file_status": "SemiNormal",
+                    "game_version": [
+                        "1.10.2"
+                    ],
+                    "file_name_on_disk": "Mantle-1.10.2-1.1.4.jar",
+                    "file_date": "2017-01-09T19:40:41",
+                    "download_url":
+                        "https://addons.cursecdn.com/files/2366/244/Mantle-1.10.2-1.1.4.jar",
+                    "alternate_file_id": 0,
+                    "id": 2366244,
+                    "package_fingerprint": 4219802267,
+                    "is_available": True,
+                    "file_name": "Mantle-1.10.2-1.1.4.jar",
+                    "is_alternate": False,
+                    "dependencies": []
+                },
+                {
+                    "release_type": "Beta",
+                    "file_status": "SemiNormal",
+                    "game_version": [
+                        "1.9"
+                    ],
+                    "file_name_on_disk": "Mantle-1.9-0.10.1.jar",
+                    "file_date": "2016-05-26T15:37:09",
+                    "download_url":
+                        "https://addons.cursecdn.com/files/2302/982/Mantle-1.9-0.10.1.jar",
+                    "alternate_file_id": 0,
+                    "id": 2302982,
+                    "package_fingerprint": 3396617729,
+                    "is_available": True,
+                    "file_name": "Mantle-1.9-0.10.1.jar",
+                    "is_alternate": False,
+                    "dependencies": []
+                },
+            ]
+        },
+    }
+
+    return pool
+
+
 # # Dependency fixtures and helpers
 
 def makefile(name: str, mod_id: int, *deps: Sequence[int]):
@@ -283,3 +383,17 @@ def test_latest_errors(minecraft, tinkers_construct):
 
     with pytest.raises(requests.HTTPError):
         proxy.latest(minecraft, tinkers_construct, addon.Release.Release)
+
+
+@responses.activate
+def test_latest_tree(minecraft, tinkers_construct, available_tinkers_tree):
+    """Does the tree resolution works as expected?"""
+
+    for url, jsn in available_tinkers_tree.items():
+        responses.add(responses.GET, url, json=jsn)
+
+    resolution = proxy.latest_file_tree(minecraft, tinkers_construct, addon.Release.Release)
+
+    assert len(responses.calls) == 2
+    assert len(resolution) == 2
+    assert set(f.id for f in resolution) == {2366244, 2353329}
