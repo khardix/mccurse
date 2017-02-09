@@ -2,6 +2,7 @@
 
 
 import os
+from copy import deepcopy
 from datetime import datetime, timezone
 from itertools import chain
 from pathlib import Path
@@ -36,7 +37,7 @@ def file_database(tmpdir) -> curse.Database:
     return curse.Database('test', Path(str(tmpdir)))
 
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def tinkers_construct() -> addon.Mod:
     """Tinkers Construct project data"""
 
@@ -46,6 +47,13 @@ def tinkers_construct() -> addon.Mod:
         'summary': 'Modify all the things, then do it again!',
     }
     return addon.Mod(**data)
+
+
+@pytest.fixture(scope='session')
+def mantle() -> addon.Mod:
+    """Mantle (Tinkers Construct dependency) project data"""
+
+    return addon.Mod(id=74924, name='Mantle', summary='')
 
 
 @pytest.fixture
@@ -87,12 +95,12 @@ def tinkers_update(tinkers_construct) -> addon.File:
 
 
 @pytest.fixture
-def mantle_file() -> addon.File:
+def mantle_file(mantle) -> addon.File:
     """Mantle (Tinkers dependency) file."""
 
     return addon.File(
         id=2366244,
-        mod=addon.Mod(id=74924, name='Mantle', summary=''),
+        mod=mantle,
         name='Mantle-1.10.2-1.1.4.jar',
         date=datetime(
             year=2017, month=1, day=9,
@@ -105,16 +113,20 @@ def mantle_file() -> addon.File:
     )
 
 
-@pytest.fixture
-def minecraft() -> curse.Game:
+@pytest.fixture(scope='session')
+def minecraft(tmpdir_factory, tinkers_construct, mantle) -> curse.Game:
     """Minecraft version for testing."""
 
-    data = {
-        'name': 'Minecraft',
-        'id': 432,
-        'version': '1.10.2',
-    }
-    return curse.Game(**data)
+    dbdir = Path(str(tmpdir_factory.mktemp('testdbs')))
+
+    game = curse.Game(id=432, name='Minecraft', version='1.10.2', cache_dir=dbdir)
+
+    sql_session = game.database.session()
+    sql_session.add(deepcopy(tinkers_construct))
+    sql_session.add(deepcopy(mantle))
+    sql_session.commit()
+
+    return game
 
 
 @pytest.fixture
