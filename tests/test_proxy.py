@@ -334,6 +334,7 @@ def test_resolve_multiple(multiple_dependency):
 
     assert len(resolution) == len(EXPECT_ORDER)
     assert list(resolution.keys()) == EXPECT_ORDER
+    assert root.mod.id == next(iter(resolution.values())).mod.id
 
     required = set(root.dependencies)
     for d in resolution.values():
@@ -351,6 +352,7 @@ def test_resolve_cycle(circular_dependency):
 
     assert len(resolution) == len(EXPECT_ORDER)
     assert list(resolution.keys()) == EXPECT_ORDER
+    assert root.mod.id == next(iter(resolution.values())).mod.id
 
     required = set(root.dependencies)
     for d in resolution.values():

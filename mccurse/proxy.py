@@ -116,7 +116,7 @@ def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:
 
     Returns:
         Ordered mapping of all the dependencies, in breadth-first order,
-        including the root.
+        including the root. The root is always first in order.
     """
 
     # Result – resolved dependencies
@@ -197,7 +197,9 @@ def latest_file_tree(
         session: :class: `requests.Session` to use [default: new session].
 
     Returns:
-        Sequence of the latest available files (possibly empty).
+        Sequence of files (possibly empty). If it is not empty, it contains
+        latest files for requested mod and all its dependencies, with
+        file belonging to the requested mod being first.
 
     Raises:
         requests.HTTPError: On HTTP-related errors.
