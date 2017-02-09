@@ -1,7 +1,8 @@
 """Interface to the Curse.RestProxy service."""
 
+from collections import OrderedDict
 from operator import attrgetter
-from typing import TextIO, Optional
+from typing import TextIO, Optional, Mapping, Sequence
 
 import attr
 import requests
@@ -12,7 +13,7 @@ from . import _
 from .addon import File, Mod, Release
 from .exceptions import InvalidStream
 from .curse import Game
-from .util import default_new_session, yaml
+from .util import default_new_session, yaml, lazydict
 
 
 HOME_URL = 'https://curse-rest-proxy.azurewebsites.net/api'
@@ -103,6 +104,39 @@ class Authorization(AuthBase):
         """
 
         yaml.dump(attr.asdict(self), file)
+
+
+def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:
+    """Fully resolve dependecies of a root :class:`addon.File`.
+
+    Keyword arguments:
+        root: The `addon.File` to resolve dependencies for.
+        pool: Available potential dependencies. Mapping from mod identification
+            to corresponding file.
+
+    Returns:
+        Ordered mapping of all the dependencies, in breadth-first order,
+        including the root.
+    """
+
+    # Result – resolved dependencies
+    resolved = OrderedDict()
+    resolved[root.mod.id] = root
+    # Which mods needs to be checked
+    queue = list(root.dependencies)
+
+    for dep_id in queue:
+        if dep_id in resolved:
+            continue
+
+        # Get the dependency
+        dependency = pool[dep_id]
+        # Mark its dependencies for processing
+        queue.extend(dependency.dependencies)
+        # Add the dependency to chain
+        resolved[dep_id] = dependency
+
+    return resolved
 
 
 def latest(

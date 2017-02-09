@@ -4,7 +4,7 @@ import os
 from contextlib import suppress, ExitStack
 from collections import OrderedDict, ChainMap
 from pathlib import Path
-from typing import Mapping, TextIO, Type, Generator, Iterable, Optional, Sequence
+from typing import TextIO, Type, Generator, Iterable, Optional, Sequence
 
 import attr
 import cerberus
@@ -12,10 +12,11 @@ import requests
 from attr import validators as vld
 
 from . import _, log
-from .addon import File
+from .addon import File, Mod, Release
 from .exceptions import InvalidStream
 from .curse import Game
-from .util import yaml, cerberus as crb, default_new_session
+from .proxy import latest, resolve
+from .util import yaml, cerberus as crb, default_new_session, lazydict
 
 
 # Pack structure for validation
@@ -32,39 +33,6 @@ cerberus.schema_registry.add('pack', {
         'dependencies': modlist,
     }},
 })
-
-
-def resolve(root: File, pool: Mapping[int, File]) -> OrderedDict:
-    """Fully resolve dependecies of a root :class:`addon.File`.
-
-    Keyword arguments:
-        root: The `addon.File` to resolve dependencies for.
-        pool: Available potential dependencies. Mapping from mod identification
-            to corresponding file.
-
-    Returns:
-        Ordered mapping of all the dependencies, in breadth-first order,
-        including the root.
-    """
-
-    # Result – resolved dependencies
-    resolved = OrderedDict()
-    resolved[root.mod.id] = root
-    # Which mods needs to be checked
-    queue = list(root.dependencies)
-
-    for dep_id in queue:
-        if dep_id in resolved:
-            continue
-
-        # Get the dependency
-        dependency = pool[dep_id]
-        # Mark its dependencies for processing
-        queue.extend(dependency.dependencies)
-        # Add the dependency to chain
-        resolved[dep_id] = dependency
-
-    return resolved
 
 
 @attr.s(slots=True)

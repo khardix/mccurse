@@ -1,11 +1,11 @@
 """Tests for the pack submodule"""
 
 from copy import deepcopy
-from datetime import datetime, timezone, timedelta
+from datetime import timedelta
 from itertools import repeat
 from io import StringIO
 from pathlib import Path
-from typing import Sequence, Tuple, Optional
+from typing import Optional
 
 import betamax
 import cerberus
@@ -15,9 +15,8 @@ import responses
 from pytest import lazy_fixture as lazy
 
 from mccurse import pack, exceptions
-from mccurse.addon import Release, File, Mod
+from mccurse.addon import File
 from mccurse.curse import Game
-from mccurse.pack import resolve
 from mccurse.util import yaml
 
 
@@ -178,58 +177,6 @@ def invalid_yaml(valid_pack) -> StringIO:
     }
 
     return StringIO(yaml.dump(structure))
-
-
-# # Dependency fixtures and helpers
-
-def makefile(name: str, mod_id: int, *deps: Sequence[int]):
-    """Shortcut for creating instances of File."""
-
-    TIMESTAMP = datetime.now(tz=timezone.utc)
-    RELEASE = Release.Release
-
-    return File(
-        mod=Mod(name=name.upper(), id=mod_id, summary=name),
-        id=(42 + mod_id),
-        name='{}.jar'.format(name),
-        date=TIMESTAMP,
-        release=RELEASE,
-        url='http://example.com/{}.jar'.format(name),
-        dependencies=list(deps),
-    )
-
-
-@pytest.fixture
-def multiple_dependency() -> Tuple[File, dict, Sequence]:
-    """Dependency graph with shared dependencies."""
-
-    root = makefile('a', 1, 2, 3)
-    deps = {
-        1: root,
-        2: makefile('b', 2, 3, 4),
-        3: makefile('c', 3),
-        4: makefile('d', 4, 3),
-        # Extra available, should not be included
-        5: makefile('e', 5, 3),
-    }
-    order = [1, 2, 3, 4]
-
-    return root, deps, order
-
-
-@pytest.fixture
-def circular_dependency() -> Tuple[File, dict, Sequence]:
-    """Dependency graph with a circle."""
-
-    root = makefile('a', 1, 2)
-    deps = {
-        1: root,
-        2: makefile('b', 2, 3),
-        3: makefile('c', 3, 1),
-    }
-    order = [1, 2, 3]
-
-    return root, deps, order
 
 
 # Tests
@@ -617,39 +564,3 @@ def test_modpack_apply(
     tinkers_path = mp.path / tinkers_update.name
 
     assert mantle_path.exists() and tinkers_path.exists()
-
-
-# # Dependency resolution tests
-
-def test_resolve_multiple(multiple_dependency):
-    """Resolving works right with shared dependencies?"""
-
-    root, pool, EXPECT_ORDER = multiple_dependency
-
-    resolution = resolve(root, pool)
-
-    assert len(resolution) == len(EXPECT_ORDER)
-    assert list(resolution.keys()) == EXPECT_ORDER
-
-    required = set(root.dependencies)
-    for d in resolution.values():
-        required.update(d.dependencies)
-
-    assert all(d in resolution for d in required)
-
-
-def test_resolve_cycle(circular_dependency):
-    """Resolving works right with circular dependencies?"""
-
-    root, pool, EXPECT_ORDER = circular_dependency
-
-    resolution = resolve(root, pool)
-
-    assert len(resolution) == len(EXPECT_ORDER)
-    assert list(resolution.keys()) == EXPECT_ORDER
-
-    required = set(root.dependencies)
-    for d in resolution.values():
-        required.update(d.dependencies)
-
-    assert all(d in resolution for d in required)
