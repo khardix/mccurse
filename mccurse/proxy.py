@@ -207,6 +207,9 @@ def latest_file_tree(
     """
 
     main = latest(game, mod, min_release, session=session)
+    if main is None:  # No file available
+        return []
+
     pool = lazydict(lambda m_id: latest(
         game=game,
         mod=Mod.with_id(game.database.session(), m_id),

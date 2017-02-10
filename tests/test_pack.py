@@ -14,8 +14,8 @@ import requests
 import responses
 from pytest import lazy_fixture as lazy
 
-from mccurse import pack, exceptions
-from mccurse.addon import File, Release
+from mccurse import pack, exceptions, proxy
+from mccurse.addon import File, Release, Mod
 from mccurse.curse import Game
 from mccurse.util import yaml
 
@@ -602,6 +602,32 @@ def test_modpack_install_changes(
 
         assert change.new_file.mod.id == mod_id
         assert change.destination is target
+
+
+@responses.activate
+def test_modpack_already_installed(
+    valid_pack,
+    tinkers_construct,
+):
+    """Test reporting of already installed file."""
+
+    with pytest.raises(exceptions.AlreadyInstalled):
+        valid_pack.install_changes(tinkers_construct, Release.Release, requests.Session())
+
+
+@responses.activate
+def test_modpack_install_no_available_file(minimal_pack):
+    """Test reporting of no available file."""
+
+    responses.add(
+        responses.GET, proxy.HOME_URL + '/addon/12345/files',
+        json={'files': []},
+    )
+
+    dummy_mod = Mod(id=12345, name='Dummy', summary=str())
+
+    with pytest.raises(exceptions.NoFileFound):
+        minimal_pack.install_changes(dummy_mod, Release.Release, requests.Session())
 
 
 def test_modpack_install(
