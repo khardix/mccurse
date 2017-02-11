@@ -630,6 +630,38 @@ def test_modpack_install_no_available_file(minimal_pack):
         minimal_pack.install_changes(dummy_mod, Release.Release, requests.Session())
 
 
+@responses.activate
+def test_modpack_remove_changes(
+    valid_pack,
+    tinkers_construct,
+):
+    """Test proper uninstallation of a mod with dependency."""
+
+    changes = valid_pack.remove_changes(tinkers_construct)
+
+    assert len(responses.calls) == 0
+    assert len(changes) == 2
+    assert set(c.old_file.mod.id for c in changes) == {74072, 74924}
+
+
+@responses.activate
+def test_modpack_remove_not_installed(valid_pack):
+    """Test proper handling of uninstallation for not installed mod."""
+
+    dummy_mod = Mod(id=12345, name='Dummy', summary=str())
+
+    with pytest.raises(exceptions.NotInstalled):
+        valid_pack.remove_changes(dummy_mod)
+
+
+@responses.activate
+def test_modpack_remove_broken_deps(valid_pack, mantle):
+    """Test proper detection of broken dependencies."""
+
+    with pytest.raises(exceptions.WouldBrokeDependency):
+        valid_pack.remove_changes(mantle)
+
+
 def test_modpack_install(
     minimal_pack,
     minecraft,

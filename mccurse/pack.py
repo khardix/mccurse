@@ -253,6 +253,40 @@ class ModPack:
 
         return changes
 
+    def remove_changes(self: 'ModPack', mod: Mod) -> Sequence['FileChange']:
+        """Generate all changes necessary for complete mod uninstallation
+        (including dependencies).
+
+        Keyword arguments:
+            mod: The mod to uninstall.
+
+        Returns:
+            File changes necessary for successful mod uninstallations.
+
+        Raises:
+            NotInstalled: The requested mod is not installed.
+            WouldBrokeDependency: Uninstallation of requested mod would
+                result in broken dependencies.
+        """
+
+        if mod.id not in self.installed:
+            raise exceptions.NotInstalled(mod.name)
+
+        # Check for broken dependencies
+        broken = set(i.mod.name for i in self.installed.values() if mod.id in i.dependencies)
+        if broken:
+            raise exceptions.WouldBrokeDependency(mod, sorted(broken))
+
+        # Everything seems to be fine, proceed.
+        mods_after_removal = dict(self.mods)
+        main = mods_after_removal.pop(mod.id, None)
+        if main is not None:
+            change = [FileChange.removal(self, main)]
+        else:
+            change = []
+
+        return change + [FileChange.removal(self, o) for o in self.orphans(mods_after_removal)]
+
     def install(
         self: 'ModPack',
         mod: Mod,
