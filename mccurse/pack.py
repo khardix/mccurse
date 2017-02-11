@@ -4,7 +4,7 @@ import os
 from contextlib import suppress, ExitStack
 from collections import OrderedDict, ChainMap
 from pathlib import Path
-from typing import TextIO, Type, Generator, Iterable, Optional, Sequence
+from typing import TextIO, Type, Generator, Iterable, Optional, Sequence, Mapping
 
 import attr
 import cerberus
@@ -147,15 +147,23 @@ class ModPack:
             else:
                 continue
 
-    def orphans(self: 'ModPack') -> Iterable[File]:
+    def orphans(self: 'ModPack', mods: Mapping[int, Mod]=None) -> Generator[File, None, None]:
         """Finds all no longer needed dependencies.
+
+        Keyword arguments:
+            mods: Optional mapping of installed mods [default: self.mods].
+                The purpose of this parameter is to be able to override
+                really installed mods without changing the property directly.
 
         Yields:
             Orphaned files.
         """
 
+        if mods is None:
+            mods = self.mods
+
         needed = {}
-        for file in self.mods.values():
+        for file in mods.values():
             needed.update(resolve(file, pool=self.installed))
 
         # Filter unneeded dependencies
