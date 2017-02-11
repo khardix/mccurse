@@ -287,6 +287,44 @@ class ModPack:
 
         return change + [FileChange.removal(self, o) for o in self.orphans(mods_after_removal)]
 
+    def upgrade_changes(
+        self: 'ModPack',
+        mod: Mod,
+        min_release: Release,
+        session: requests.Session
+    ) -> Sequence['FileChange']:
+        """Generate changes necessary for upgrade of a mod to latest available version.
+
+        Keyword arguments:
+            mod: The mod to upgrade.
+            min_release: Minimal release to consider for upgrade.
+            session: requests.Session to use for fetching file information.
+
+        Returns:
+            Sequence of upgrade changes.
+
+        Raises:
+            NotInstalled: The requested mod is not installed.
+        """
+
+        def appropriate_change(new_file: File) -> FileChange:
+            """Determine appropriate change for new file."""
+
+            if new_file.mod.id in self.installed:
+                return FileChange.upgrade(self, new_file)
+            else:
+                return FileChange.installation(self, self.dependencies, new_file)
+
+        if mod.id not in self.installed:
+            raise exceptions.NotInstalled
+
+        # Detect all possible upgrades
+        files = latest_file_tree(self.game, mod, min_release, session=session)
+        files = self.filter_obsoletes(files)
+        changes = list(map(appropriate_change, files))
+
+        return changes
+
     def install(
         self: 'ModPack',
         mod: Mod,

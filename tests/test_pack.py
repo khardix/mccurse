@@ -662,6 +662,24 @@ def test_modpack_remove_broken_deps(valid_pack, mantle):
         valid_pack.remove_changes(mantle)
 
 
+def test_modpack_upgrade_changes(
+    valid_pack,
+    tinkers_construct,
+    available_tinkers_tree,
+):
+    """Test proper upgrade of specified mod."""
+
+    with available_tinkers_tree:
+        changes = valid_pack.upgrade_changes(
+            tinkers_construct,
+            Release.Release,
+            requests.Session(),
+        )
+
+    assert len(changes) == 1
+    assert changes[0].new_file.id == 2353329
+
+
 def test_modpack_install(
     minimal_pack,
     minecraft,
