@@ -4,7 +4,7 @@ import os
 from contextlib import suppress, ExitStack
 from collections import OrderedDict, ChainMap
 from pathlib import Path
-from typing import TextIO, Type, Generator, Iterable, Optional, Sequence
+from typing import TextIO, Type, Generator, Iterable, Optional, Sequence, Mapping
 
 import attr
 import cerberus
@@ -147,15 +147,23 @@ class ModPack:
             else:
                 continue
 
-    def orphans(self: 'ModPack') -> Iterable[File]:
+    def orphans(self: 'ModPack', mods: Mapping[int, Mod]=None) -> Generator[File, None, None]:
         """Finds all no longer needed dependencies.
+
+        Keyword arguments:
+            mods: Optional mapping of installed mods [default: self.mods].
+                The purpose of this parameter is to be able to override
+                really installed mods without changing the property directly.
 
         Yields:
             Orphaned files.
         """
 
+        if mods is None:
+            mods = self.mods
+
         needed = {}
-        for file in self.mods.values():
+        for file in mods.values():
             needed.update(resolve(file, pool=self.installed))
 
         # Filter unneeded dependencies
@@ -242,6 +250,78 @@ class ModPack:
                 changes.append(
                     FileChange.installation(self, self.dependencies, dependency)
                 )
+
+        return changes
+
+    def remove_changes(self: 'ModPack', mod: Mod) -> Sequence['FileChange']:
+        """Generate all changes necessary for complete mod uninstallation
+        (including dependencies).
+
+        Keyword arguments:
+            mod: The mod to uninstall.
+
+        Returns:
+            File changes necessary for successful mod uninstallations.
+
+        Raises:
+            NotInstalled: The requested mod is not installed.
+            WouldBrokeDependency: Uninstallation of requested mod would
+                result in broken dependencies.
+        """
+
+        if mod.id not in self.installed:
+            raise exceptions.NotInstalled(mod.name)
+
+        # Check for broken dependencies
+        broken = set(i.mod.name for i in self.installed.values() if mod.id in i.dependencies)
+        if broken:
+            raise exceptions.WouldBrokeDependency(mod, sorted(broken))
+
+        # Everything seems to be fine, proceed.
+        mods_after_removal = dict(self.mods)
+        main = mods_after_removal.pop(mod.id, None)
+        if main is not None:
+            change = [FileChange.removal(self, main)]
+        else:
+            change = []
+
+        return change + [FileChange.removal(self, o) for o in self.orphans(mods_after_removal)]
+
+    def upgrade_changes(
+        self: 'ModPack',
+        mod: Mod,
+        min_release: Release,
+        session: requests.Session
+    ) -> Sequence['FileChange']:
+        """Generate changes necessary for upgrade of a mod to latest available version.
+
+        Keyword arguments:
+            mod: The mod to upgrade.
+            min_release: Minimal release to consider for upgrade.
+            session: requests.Session to use for fetching file information.
+
+        Returns:
+            Sequence of upgrade changes.
+
+        Raises:
+            NotInstalled: The requested mod is not installed.
+        """
+
+        def appropriate_change(new_file: File) -> FileChange:
+            """Determine appropriate change for new file."""
+
+            if new_file.mod.id in self.installed:
+                return FileChange.upgrade(self, new_file)
+            else:
+                return FileChange.installation(self, self.dependencies, new_file)
+
+        if mod.id not in self.installed:
+            raise exceptions.NotInstalled
+
+        # Detect all possible upgrades
+        files = latest_file_tree(self.game, mod, min_release, session=session)
+        files = self.filter_obsoletes(files)
+        changes = list(map(appropriate_change, files))
 
         return changes
 

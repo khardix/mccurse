@@ -5,7 +5,7 @@ specialised exceptions in other modules.
 """
 
 import sys
-from typing import Mapping, Optional
+from typing import Mapping, Optional, Sequence
 
 import click
 
@@ -62,10 +62,37 @@ class AlreadyInstalled(UserReport):
     exit_code = 0
 
     header = _('Mod is already installed')
-    color = 'green'
+    color = 'yellow'
 
 
 class NoFileFound(UserReport):
     """No available file found for specified mod and game version."""
 
     header = _('No available file found for mod')
+
+
+class NotInstalled(UserReport):
+    """Requested mod is not installed."""
+
+    header = _('Mod is not installed')
+    color = 'yellow'
+
+
+class WouldBrokeDependency(UserReport):
+    """Removal of specified mod would cause unsatisfied dependency for another."""
+
+    __slots__ = 'culprit', 'dependents'
+
+    def __init__(self, mod: 'Mod', broken: Sequence['Mod']):
+        super().__init__('Dependency broken by {mod.name}'.format_map(locals()))
+
+        self.culprit = mod
+        self.dependents = broken
+
+    def format_message(self):
+        msg = "Removal of {culprit.name} would break dependency for:{lst}".format(
+            culprit=self.culprit,
+            lst='\n\t- '.join(d.name for d in self.dependents),
+        )
+
+        return msg

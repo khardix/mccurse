@@ -14,8 +14,8 @@ import requests
 import responses
 from pytest import lazy_fixture as lazy
 
-from mccurse import pack, exceptions
-from mccurse.addon import File, Release
+from mccurse import pack, exceptions, proxy
+from mccurse.addon import File, Release, Mod
 from mccurse.curse import Game
 from mccurse.util import yaml
 
@@ -602,6 +602,82 @@ def test_modpack_install_changes(
 
         assert change.new_file.mod.id == mod_id
         assert change.destination is target
+
+
+@responses.activate
+def test_modpack_already_installed(
+    valid_pack,
+    tinkers_construct,
+):
+    """Test reporting of already installed file."""
+
+    with pytest.raises(exceptions.AlreadyInstalled):
+        valid_pack.install_changes(tinkers_construct, Release.Release, requests.Session())
+
+
+@responses.activate
+def test_modpack_install_no_available_file(minimal_pack):
+    """Test reporting of no available file."""
+
+    responses.add(
+        responses.GET, proxy.HOME_URL + '/addon/12345/files',
+        json={'files': []},
+    )
+
+    dummy_mod = Mod(id=12345, name='Dummy', summary=str())
+
+    with pytest.raises(exceptions.NoFileFound):
+        minimal_pack.install_changes(dummy_mod, Release.Release, requests.Session())
+
+
+@responses.activate
+def test_modpack_remove_changes(
+    valid_pack,
+    tinkers_construct,
+):
+    """Test proper uninstallation of a mod with dependency."""
+
+    changes = valid_pack.remove_changes(tinkers_construct)
+
+    assert len(responses.calls) == 0
+    assert len(changes) == 2
+    assert set(c.old_file.mod.id for c in changes) == {74072, 74924}
+
+
+@responses.activate
+def test_modpack_remove_not_installed(valid_pack):
+    """Test proper handling of uninstallation for not installed mod."""
+
+    dummy_mod = Mod(id=12345, name='Dummy', summary=str())
+
+    with pytest.raises(exceptions.NotInstalled):
+        valid_pack.remove_changes(dummy_mod)
+
+
+@responses.activate
+def test_modpack_remove_broken_deps(valid_pack, mantle):
+    """Test proper detection of broken dependencies."""
+
+    with pytest.raises(exceptions.WouldBrokeDependency):
+        valid_pack.remove_changes(mantle)
+
+
+def test_modpack_upgrade_changes(
+    valid_pack,
+    tinkers_construct,
+    available_tinkers_tree,
+):
+    """Test proper upgrade of specified mod."""
+
+    with available_tinkers_tree:
+        changes = valid_pack.upgrade_changes(
+            tinkers_construct,
+            Release.Release,
+            requests.Session(),
+        )
+
+    assert len(changes) == 1
+    assert changes[0].new_file.id == 2353329
 
 
 def test_modpack_install(
