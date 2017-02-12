@@ -65,6 +65,12 @@ class AlreadyInstalled(UserReport):
     color = 'yellow'
 
 
+class AlreadyUpToDate(AlreadyInstalled):
+    """Installed mod is already up-to date."""
+
+    header = _('Mod is already up-to date')
+
+
 class NoFileFound(UserReport):
     """No available file found for specified mod and game version."""
 
