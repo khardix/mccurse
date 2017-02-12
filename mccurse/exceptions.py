@@ -90,9 +90,11 @@ class WouldBrokeDependency(UserReport):
         self.dependents = broken
 
     def format_message(self):
-        msg = "Removal of {culprit.name} would break dependency for:{lst}".format(
+        separator = '\n\t- '
+        msg = "Removal of {culprit.name} would break dependency for:{sep}{lst}".format(
             culprit=self.culprit,
-            lst='\n\t- '.join(d.name for d in self.dependents),
+            sep=separator,
+            lst=separator.join(d.name for d in self.dependents),
         )
 
         return msg

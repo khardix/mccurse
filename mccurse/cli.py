@@ -1,180 +1,195 @@
-"""Package command line interface."""
+"""Command line interface to the package."""
 
 import curses
-import logging
-from collections import ChainMap
+from contextlib import contextmanager
+from functools import partial
+from logging import ERROR, INFO
 from pathlib import Path
-from typing import Mapping
+from typing import Generator
 
 import click
+import requests
 
-from . import _, PKGDATA, log
-from .curse import Game, Mod
+from . import _, log
+from .addon import Mod, Release
+from .exceptions import UserReport
+from .curse import Game
 from .pack import ModPack
 from .proxy import Authorization
 from .tui import select_mod
-from .util import default_data_dir, yaml
+from .util import default_data_dir
 
 
-def find_game(name: str, user_conf: Mapping = None) -> Mapping:
-    """Find default parameters for a game.
+# Customized path types
+custom_path = partial(click.Path, resolve_path=True, path_type=str)
+writable_file = partial(custom_path, writable=True, dir_okay=False)
+writable_dir = partial(custom_path, writable=True, file_okay=False)
+
+
+# Mod-pack context
+@contextmanager
+def modpack_file(path: Path) -> Generator[ModPack, None, None]:
+    """Context manager for manipulation of existing mod-pack.
 
     Keyword arguments:
-        name: The game name to look for, case insensitive.
-        user_conf: User-configured game defaults. This mapping should
-            have the same structure as the package's game defaults
-            configuration.
+        path: Path to the existing ModPack file, which should be provided.
 
-    Returns:
-        Combined mapping of the parameter values, with user_conf
-        taking precedence.
+    Yields:
+        ModPack loaded from path. If no exception occurs, the provided modpack
+        is written (with changes) back to the file on context exit.
     """
 
-    user_conf = dict() if user_conf is None else user_conf
+    with path.open(encoding='utf-8', mode='r') as istream:
+        mp = ModPack.load(istream)
 
-    with (PKGDATA / 'supported_games.yaml').open(encoding='utf-8') as stream:
-        package_defaults = yaml.load(stream)
+    yield mp
 
-    return ChainMap(
-        user_conf.get(name.lower(), dict()),
-        package_defaults.get(name.lower(), dict()),
-    )
-
-
-def check_minecraft_dir(root: Path) -> None:
-    """Checks if the directory is a suitable space for minecraft mods.
-
-    Keyword Arguments:
-        root: The checked dir – should be a root dir of minecraft profile.
-
-    Raises:
-        FileNotFoundError: When some expected file or directory is not found.
-    """
-
-    mods_dir = root / 'mods'
-
-    if not mods_dir.is_dir():
-        raise FileNotFoundError(str(mods_dir))
+    with path.open(encoding='utf-8', mode='w') as ostream:
+        mp.dump(ostream)
 
 
 @click.group()
 @click.version_option()
-@click.option(
-    '--game', '-g',
-    type=click.STRING, default='Minecraft',
-    help=_('Specify the game to mod.'),
-)
-@click.option(
-    '--gamever', '-v',
-    type=click.STRING, default=None,
-    help=_('Specify the game version to mod.'),
-)
-@click.option(
-    '--quiet', '-q', is_flag=True, default=False,
-)
+@click.option('--refresh', is_flag=True, default=False,
+              help=_('Force refresh of existing mods list.'))
+@click.option('--quiet', '-q', is_flag=True, default=False,
+              help=_('Silence the process reporting.'))
 @click.pass_context
-def cli(ctx, game, gamever, quiet):
-    """Minecraft Curse CLI client."""
+def cli(ctx, quiet, refresh):
+    """Unofficial CLI client for Minecraft Curse Forge."""
 
-    # Resolve game parameters
-    game_params = find_game(game)
-    if not game_params:
-        raise SystemExit(_("Unknown game '{game}'").format_map(locals()))
-    if gamever:
-        game_params['version'] = gamever
-
-    # Initialize terminal for querying
-    curses.setupterm()
-
-    if not quiet:
-        log.setLevel(logging.INFO)
-    else:
-        log.setLevel(logging.ERROR)
-
-    # Add contextual values
+    # Context for the subcommands
     ctx.obj = {
-        # Data directory
-        'datadir': default_data_dir(),
-        # Authentication file
-        'authfile': default_data_dir() / 'token.yaml',
-        # Game to work with
-        'game': Game(name=game, **game_params),
+        'default_game': Game.find('Minecraft'),  # Default game to query and use
+        'token_path': default_data_dir() / 'token.yaml',  # Authorization token location
     }
 
+    # Common setup
 
-@cli.command()
-@click.option(
-    '--refresh', is_flag=True, default=False,
-    # NOTE: Help for refresh flag
-    help=_('Force refreshing of search data.')
-)
-@click.pass_obj
-@click.argument('text', nargs=-1, type=str)
-def search(ctx, refresh, text):
-    """Search for TEXT in mods on CurseForge."""
+    # Setup terminal for querying (number of colors, etc.)
+    curses.setupterm()
+    # Setup appropriate logging level
+    log.setLevel(INFO if not quiet else ERROR)
 
-    if not text:
-        raise SystemExit(_('No text to search for!'))
-
-    game = ctx['game']
-
-    text = ' '.join(text)
-    refresh = refresh or not game.have_fresh_data()
-
-    if refresh:
-        log.info(_('Refreshing search data, please wait…'))
-        game.refresh_data()
-
-    found = Mod.search(game.database.session(), text)
-
-    title = _('Search results for "{text}"').format(text=text)
-    instructions = _(
-        'Choose mod to open its project page, or press [q] to quit.'
-    )
-
-    chosen = select_mod(found, title, instructions)
-    if chosen is not None:
-        project_url_fmt = 'https://www.curseforge.com/projects/{mod.id}/'
-        click.launch(project_url_fmt.format(mod=chosen))
+    # Refresh game data if necessary
+    if refresh or not ctx.obj['default_game'].have_fresh_data():
+        log.info(_('Refreshing game data, please wait.'))
+        ctx.obj['default_game'].refresh_data()
 
 
 @cli.command()
-@click.option(
-    '--user', '-u', prompt=_('Curse user name or email'),
-    help=_('Curse user name or email')+'.',
-)
-@click.password_option(
-    help=_('Curse password')+'.',
-)
+@click.option('--user', '-u', prompt=_('User name or email for Curse'),
+              help=_('User name or email for Curse')+'.')
+@click.password_option(help=_('Password for Curse')+'.')
 @click.pass_obj
 def auth(ctx, user, password):
-    """Authenticate user in Curse network."""
+    """Authenticate user for subsequent file operations."""
 
     token = Authorization.login(user, password)
+    path = ctx['token_path']
 
-    with ctx['authfile'].open(mode='w', encoding='utf-8') as file:
-        token.dump(file)
+    with path.open(mode='w', encoding='utf-8') as stream:
+        token.dump(stream)
 
 
 @cli.command()
-@click.option(
-    '--profile', '-p', type=click.Path(exists=True, file_okay=False),
-    default='.',
-    help=_('Root profile directory')+'.',
-)
+@click.argument('name')
 @click.pass_obj
-def new(ctx, profile):
-    """Create a new modpack for Minecraft VERSION."""
+def search(ctx, name):
+    """Search Curse Forge for a mod named NAME."""
 
-    game = ctx['game']
-    profile = Path(str(profile))
+    search_result_description = {
+        'header': _('Search results for "{name}"').format_map(locals()),
+        'footer': _('Choose a mod to open its project page, or press [q] to quit.'),
+    }
 
-    try:
-        check_minecraft_dir(profile)
-    except FileNotFoundError as err:
-        msg = _('Profile directory is not valid: Missing {!s}').format(err)
-        raise SystemExit(msg) from None
+    moddb = ctx['default_game'].database
 
-    modpack_file = profile / 'modpack.yaml'
-    with modpack_file.open(mode='w', encoding='utf-8') as stream:
-        ModPack.create(game).to_yaml(stream)
+    results = Mod.search(moddb.session(), name)
+    chosen = select_mod(results, **search_result_description)
+
+    if chosen is not None:
+        mod_page_url = 'https://www.curseforge.com/projects/{chosen.id}/'.format_map(locals())
+        click.launch(mod_page_url)
+
+
+# Shared option -- location of mod-pack data
+pack_option = click.option(
+    '--pack', help=_('Path to the mod-pack metadata file.'),
+    type=writable_file(),
+    default='modpack.yml',
+)
+
+# Shared option -- minimal release of a mod to consider
+release_option = click.option(
+    '--release', help=_('Minimal acceptable release type of a mod.'),
+    type=click.Choice(('alpha', 'beta', 'release')), default='release',
+)
+
+
+@cli.command()
+@pack_option
+@click.option(
+    '--path', help=_('Path to the storage directory for managed mods.'),
+    type=writable_dir(exists=True), default='mods',
+)
+@click.option('--gamever', '-v', help=_('Version of the game to create mod-pack for.'))
+@click.pass_obj
+def new(ctx, pack, path, gamever):
+    """Create and initialize a new mod-pack."""
+
+    # Check file system state
+    pack_path = Path(pack)
+    mods_path = Path(path)
+
+    if not pack_path.parent.exists():
+        msg = _('Mod-pack directory does not exists: {}').format(pack_path.parent)
+        raise UserReport(msg)
+    # Mods path existence is checked by click
+
+    # Setup game fro the mod-pack
+    game = ctx['default_game']
+    if gamever is not None:
+        game.version = gamever
+
+    with pack_path.open(mode='w', encoding='utf-8') as stream:
+        mp = ModPack(game, mods_path.relative_to(pack_path.parent))
+        mp.dump(stream)
+
+
+@cli.command()
+@pack_option
+@release_option
+@click.argument('mod')
+@click.pass_obj
+def install(ctx, pack, release, mod):
+    """Install new MOD into a mod-pack."""
+
+    with modpack_file(Path(pack)) as pack:
+        moddb = pack.game.database
+        mod = Mod.find(moddb.session(), mod)
+
+        proxy_session = requests.Session()
+        with ctx['token_path'].open(encoding='utf-8') as token:
+            proxy_session.auth = Authorization.load(token)
+
+        changes = pack.install_changes(
+            mod=mod,
+            min_release=Release[release.capitalize()],
+            session=proxy_session,
+        )
+        pack.apply(changes)
+
+
+@cli.command()
+@pack_option
+@click.argument('mod')
+def remove(pack, mod):
+    """Remove a MOD from a mod-pack."""
+
+    with modpack_file(Path(pack)) as pack:
+        moddb = pack.game.database
+        mod = Mod.find(moddb.session(), mod)
+
+        changes = pack.remove_changes(mod)
+        pack.apply(changes)
