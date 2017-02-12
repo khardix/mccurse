@@ -75,9 +75,6 @@ def test_mod_find(filled_database):
 
     assert addon.Mod.find(session, 'Tested').id == 42
 
-    with pytest.raises(addon.MultipleResultsFound):
-        addon.Mod.find(session, 'test')
-
     with pytest.raises(addon.NoResultFound):
         addon.Mod.find(session, 'nonsense')
 
