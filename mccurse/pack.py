@@ -3,6 +3,7 @@
 import os
 from contextlib import suppress, ExitStack
 from collections import OrderedDict, ChainMap
+from itertools import groupby
 from pathlib import Path
 from typing import TextIO, Type, Generator, Iterable, Optional, Sequence, Mapping
 
@@ -269,13 +270,17 @@ class ModPack:
                 result in broken dependencies.
         """
 
+        def uniq_names(mods: Iterable[Mod]) -> Generator[Mod, None, None]:
+            srt = sorted(mods, key=lambda m: m.name)
+            yield from (next(g) for k, g in groupby(srt, key=lambda m: m.name))
+
         if mod.id not in self.installed:
             raise exceptions.NotInstalled(mod.name)
 
         # Check for broken dependencies
-        broken = set(i.mod.name for i in self.installed.values() if mod.id in i.dependencies)
+        broken = [i.mod for i in self.installed.values() if mod.id in i.dependencies]
         if broken:
-            raise exceptions.WouldBrokeDependency(mod, sorted(broken))
+            raise exceptions.WouldBrokeDependency(mod, uniq_names(broken))
 
         # Everything seems to be fine, proceed.
         mods_after_removal = dict(self.mods)
