@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Generator
 
 import click
+import requests
 
 from . import _, log
 from .addon import Mod, Release
@@ -154,3 +155,27 @@ def new(ctx, pack, path, gamever):
     with pack_path.open(mode='w', encoding='utf-8') as stream:
         mp = ModPack(game, mods_path.relative_to(pack_path.parent))
         mp.dump(stream)
+
+
+@cli.command()
+@pack_option
+@release_option
+@click.argument('mod')
+@click.pass_obj
+def install(ctx, pack, release, mod):
+    """Install new MOD into a mod-pack."""
+
+    moddb = ctx['default_game'].database
+    mod = Mod.find(moddb.session(), mod)
+
+    proxy_session = requests.Session()
+    with ctx['token_path'].open(encoding='utf-8') as token:
+        proxy_session.auth = Authorization.load(token)
+
+    with modpack_file(Path(pack)) as pack:
+        changes = pack.install_changes(
+            mod=mod,
+            min_release=Release[release.capitalize()],
+            session=proxy_session,
+        )
+        pack.apply(changes)
