@@ -179,3 +179,17 @@ def install(ctx, pack, release, mod):
             session=proxy_session,
         )
         pack.apply(changes)
+
+
+@cli.command()
+@pack_option
+@click.argument('mod')
+def remove(pack, mod):
+    """Remove a MOD from a mod-pack."""
+
+    with modpack_file(Path(pack)) as pack:
+        moddb = pack.game.database
+        mod = Mod.find(moddb.session(), mod)
+
+        changes = pack.remove_changes(mod)
+        pack.apply(changes)
