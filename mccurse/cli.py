@@ -7,6 +7,7 @@ import click
 
 from . import _, log
 from .curse import Game
+from .proxy import Authorization
 from .util import default_data_dir
 
 
@@ -37,3 +38,18 @@ def cli(ctx, quiet, refresh):
     if refresh or not ctx.obj['default_game'].have_fresh_data():
         log.info(_('Refreshing game data, please wait.'))
         ctx.obj['default_game'].refresh_data()
+
+
+@cli.command()
+@click.option('--user', '-u', prompt=_('User name or email for Curse'),
+              help=_('User name or email for Curse')+'.')
+@click.password_option(help=_('Password for Curse')+'.')
+@click.pass_obj
+def auth(ctx, user, password):
+    """Authenticate user for subsequent file operations."""
+
+    token = Authorization.login(user, password)
+    path = ctx['token_path']
+
+    with path.open(mode='w', encoding='utf-8') as stream:
+        token.dump(stream)
