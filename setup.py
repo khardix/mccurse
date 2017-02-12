@@ -77,7 +77,7 @@ setup(
     license='AGPLv3+',
     classifiers=[
         # Development status
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
 
         # Target audience
         'Intended Audience :: End Users/Desktop',
