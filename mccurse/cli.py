@@ -1,16 +1,26 @@
 """Command line interface to the package."""
 
 import curses
+from functools import partial
 from logging import ERROR, INFO
+from pathlib import Path
 
 import click
 
 from . import _, log
 from .addon import Mod
+from .exceptions import UserReport
 from .curse import Game
+from .pack import ModPack
 from .proxy import Authorization
 from .tui import select_mod
 from .util import default_data_dir
+
+
+# Customized path types
+custom_path = partial(click.Path, resolve_path=True, path_type=str)
+writable_file = partial(custom_path, writable=True, dir_okay=False)
+writable_dir = partial(custom_path, writable=True, file_okay=False)
 
 
 @click.group()
@@ -76,3 +86,41 @@ def search(ctx, name):
     if chosen is not None:
         mod_page_url = 'https://www.curseforge.com/projects/{chosen.id}/'.format_map(locals())
         click.launch(mod_page_url)
+
+
+# Shared option -- location of mod-pack data
+pack_option = click.option(
+    '--pack', help=_('Path to the mod-pack metadata file.'),
+    type=writable_file(),
+    default='modpack.yml',
+)
+
+
+@cli.command()
+@pack_option
+@click.option(
+    '--path', help=_('Path to the storage directory for managed mods.'),
+    type=writable_dir(exists=True), default='mods',
+)
+@click.option('--gamever', '-v', help=_('Version of the game to create mod-pack for.'))
+@click.pass_obj
+def new(ctx, pack, path, gamever):
+    """Create and initialize a new mod-pack."""
+
+    # Check file system state
+    pack_path = Path(pack)
+    mods_path = Path(path)
+
+    if not pack_path.parent.exists():
+        msg = _('Mod-pack directory does not exists: {}').format(pack_path.parent)
+        raise UserReport(msg)
+    # Mods path existence is checked by click
+
+    # Setup game fro the mod-pack
+    game = ctx['default_game']
+    if gamever is not None:
+        game.version = gamever
+
+    with pack_path.open(mode='w', encoding='utf-8') as stream:
+        mp = ModPack(game, mods_path.relative_to(pack_path.parent))
+        mp.dump(stream)
