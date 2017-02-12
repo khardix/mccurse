@@ -165,14 +165,14 @@ def new(ctx, pack, path, gamever):
 def install(ctx, pack, release, mod):
     """Install new MOD into a mod-pack."""
 
-    moddb = ctx['default_game'].database
-    mod = Mod.find(moddb.session(), mod)
-
-    proxy_session = requests.Session()
-    with ctx['token_path'].open(encoding='utf-8') as token:
-        proxy_session.auth = Authorization.load(token)
-
     with modpack_file(Path(pack)) as pack:
+        moddb = pack.game.database
+        mod = Mod.find(moddb.session(), mod)
+
+        proxy_session = requests.Session()
+        with ctx['token_path'].open(encoding='utf-8') as token:
+            proxy_session.auth = Authorization.load(token)
+
         changes = pack.install_changes(
             mod=mod,
             min_release=Release[release.capitalize()],
