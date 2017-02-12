@@ -119,7 +119,7 @@ class Mod(AddonBase):
         query = SQLBakery(lambda conn: conn.query(cls))
         query += lambda q: q.filter(cls.name.like(bindparam('name')))
 
-        return query(connection).params(name='%{}%'.format(name)).one()
+        return query(connection).params(name='{}'.format(name)).one()
 
     @classmethod
     def with_id(cls, connection: SQLSession, id: int) -> 'Mod':
