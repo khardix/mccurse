@@ -1,9 +1,11 @@
 """Command line interface to the package."""
 
 import curses
+from contextlib import contextmanager
 from functools import partial
 from logging import ERROR, INFO
 from pathlib import Path
+from typing import Generator
 
 import click
 
@@ -21,6 +23,28 @@ from .util import default_data_dir
 custom_path = partial(click.Path, resolve_path=True, path_type=str)
 writable_file = partial(custom_path, writable=True, dir_okay=False)
 writable_dir = partial(custom_path, writable=True, file_okay=False)
+
+
+# Mod-pack context
+@contextmanager
+def modpack_file(path: Path) -> Generator[ModPack, None, None]:
+    """Context manager for manipulation of existing mod-pack.
+
+    Keyword arguments:
+        path: Path to the existing ModPack file, which should be provided.
+
+    Yields:
+        ModPack loaded from path. If no exception occurs, the provided modpack
+        is written (with changes) back to the file on context exit.
+    """
+
+    with path.open(encoding='utf-8', mode='r') as istream:
+        mp = ModPack.load(istream)
+
+    yield mp
+
+    with path.open(encoding='utf-8', mode='w') as ostream:
+        mp.dump(ostream)
 
 
 @click.group()
