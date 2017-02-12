@@ -10,7 +10,7 @@ from typing import Generator
 import click
 
 from . import _, log
-from .addon import Mod
+from .addon import Mod, Release
 from .exceptions import UserReport
 from .curse import Game
 from .pack import ModPack
@@ -117,6 +117,12 @@ pack_option = click.option(
     '--pack', help=_('Path to the mod-pack metadata file.'),
     type=writable_file(),
     default='modpack.yml',
+)
+
+# Shared option -- minimal release of a mod to consider
+release_option = click.option(
+    '--release', help=_('Minimal acceptable release type of a mod.'),
+    type=click.Choice(('alpha', 'beta', 'release')), default='release',
 )
 
 
