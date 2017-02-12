@@ -12,7 +12,7 @@ import requests
 
 from . import _, log
 from .addon import Mod, Release
-from .exceptions import UserReport
+from .exceptions import UserReport, AlreadyUpToDate
 from .curse import Game
 from .pack import ModPack
 from .proxy import Authorization
@@ -192,4 +192,31 @@ def remove(pack, mod):
         mod = Mod.find(moddb.session(), mod)
 
         changes = pack.remove_changes(mod)
+        pack.apply(changes)
+
+
+@cli.command()
+@pack_option
+@release_option
+@click.argument('mod')
+@click.pass_obj
+def upgrade(ctx, pack, release, mod):
+    """Upgrade MOD and its dependencies."""
+
+    with modpack_file(Path(pack)) as pack:
+        moddb = pack.game.database
+        mod = Mod.find(moddb.session(), mod)
+
+        proxy_session = requests.Session()
+        with ctx['token_path'].open(encoding='utf-8') as token:
+            proxy_session.auth = Authorization.load(token)
+
+        changes = pack.upgrade_changes(
+            mod=mod,
+            min_release=Release[release.capitalize()],
+            session=proxy_session,
+        )
+        if not changes:
+            raise AlreadyUpToDate(mod.name)
+
         pack.apply(changes)
