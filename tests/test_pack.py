@@ -7,6 +7,7 @@ from io import StringIO
 from pathlib import Path
 from typing import Optional
 
+import attr
 import betamax
 import cerberus
 import pytest
@@ -495,8 +496,7 @@ def test_modpack_filter_obsoletes(
 ):
     """Test filtering of obsolete files."""
 
-    older = deepcopy(mantle_file)
-    older.date -= timedelta(hours=1)
+    older = attr.evolve(mantle_file, date=mantle_file.date-timedelta(hours=1))
 
     INPUT = [older, tinkers_construct_file, tinkers_update, mantle_file]
     EXPECT = {tinkers_update}
@@ -517,23 +517,25 @@ def test_modpack_filter_no_obsoletes(
 def test_modpack_orphans(valid_pack, mantle_file):
     """Test if the orphan is found properly"""
 
-    orphan_parent, orphan_child = map(deepcopy, repeat(mantle_file, 2))
+    # Prepare orphaned mods
+    orphan_parent, orphan_child = map(deepcopy, repeat(mantle_file.mod, 2))
+    orphan_child.id += 43
+    orphan_parent.id += 42
 
-    # Create orphan that is depended upon by orphan_parent
-    orphan_child.mod.id += 42
-    orphan_child.name = 'ORPHAN:CHILD'
-
-    # Create orphan with a dependency on its own
-    orphan_parent.mod.id = orphan_child.mod.id + 42
-    orphan_parent.dependencies.append(orphan_child.mod.id)
-    orphan_parent.name = 'ORPHAN:PARENT'
-
-    # Add both orphans to the dependencies
-    valid_pack.dependencies.update(
-        (o.mod.id, o) for o in (orphan_parent, orphan_child)
+    # Create orphaned files
+    dependency = attr.evolve(mantle_file, mod=orphan_child, name='ORPHAN:CHILD')
+    dependent = attr.evolve(
+        mantle_file,
+        mod=orphan_parent,
+        dependencies=mantle_file.dependencies + [orphan_child.id],
+        name='ORPHAN:PARENT',
     )
 
-    assert set(valid_pack.orphans()) == {orphan_parent, orphan_child}
+    orphan_files = {dependency, dependent}
+
+    # Add both orphans to the dependencies
+    valid_pack.dependencies.update((o.mod.id, o) for o in orphan_files)
+    assert set(valid_pack.orphans()) == {dependency, dependent}
 
 
 def test_modpack_apply(
