@@ -145,7 +145,7 @@ class Feed:
         return self._decode_timestamp(int(resp.content))
 
 
-@attr.s(slots=True)
+@attr.s(slots=True, cmp=False)
 class Database:
     """Interface to the local database of addons for a particular game.
 
