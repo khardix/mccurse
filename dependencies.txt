@@ -1,4 +1,4 @@
-attrs
+attrs>=16,<17
 click
 cerberus
 colorlog
