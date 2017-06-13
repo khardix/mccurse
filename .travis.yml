@@ -3,8 +3,8 @@ language: python
 python:
     - "3.5"
     - "3.6"
-install: "pip install -r requirements.txt ."
-script: "pytest"
+install: pip install tox-travis
+script: tox
 branches:
     except:
         # disable branches beginning with 'draft-
