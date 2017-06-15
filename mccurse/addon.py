@@ -188,7 +188,7 @@ class Release(Enum):
 
 
 @yaml.tag('!modfile', type=yaml.NodeType.MAPPING)
-@attr.s(slots=True)
+@attr.s(slots=True, frozen=True)
 class File:
     """Metadata of a file belonging to some mod."""
 
